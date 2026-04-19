@@ -13,7 +13,7 @@ from modules.photo_validator    import PhotoValidator
 from modules.health_score       import calculate_health_score
 
 app = Flask(__name__)
-CORS(app)  # allow React on localhost:3000
+CORS(app)
 
 # ── initialise models once at startup ──────────────────────────────────────
 wear_clf      = WearClassifier()
@@ -57,22 +57,25 @@ def read_image(file_storage):
     return Image.open(io.BytesIO(file_storage.read())).convert("RGB")
 
 
+# ── health check ────────────────────────────────────────────────────────────
+@app.route("/", methods=["GET"])
+def health():
+    return jsonify({"status": "Strada backend is running"})
+
+
 # ── endpoint ────────────────────────────────────────────────────────────────
 @app.route("/predict", methods=["POST"])
 def predict():
-    # validate at least one image provided
     all_fields = ["left_profile", "right_profile", "area_of_interest", "tread_closeup", "cracks"]
     if not any(f in request.files for f in all_fields):
         return jsonify({"error": "Please upload at least one image"}), 400
 
-    # read images — all optional now
-    tread_img   = read_image(request.files["tread_closeup"])   if "tread_closeup"    in request.files else None
-    left_img    = read_image(request.files["left_profile"])    if "left_profile"     in request.files else None
-    right_img   = read_image(request.files["right_profile"])   if "right_profile"    in request.files else None
-    aoi_img     = read_image(request.files["area_of_interest"])if "area_of_interest" in request.files else None
-    cracks_img  = read_image(request.files["cracks"])          if "cracks"           in request.files else None
+    tread_img   = read_image(request.files["tread_closeup"])    if "tread_closeup"    in request.files else None
+    left_img    = read_image(request.files["left_profile"])     if "left_profile"     in request.files else None
+    right_img   = read_image(request.files["right_profile"])    if "right_profile"    in request.files else None
+    aoi_img     = read_image(request.files["area_of_interest"]) if "area_of_interest" in request.files else None
+    cracks_img  = read_image(request.files["cracks"])           if "cracks"           in request.files else None
 
-    # use whichever image is available as primary for gradcam
     primary_img = tread_img or aoi_img or left_img or right_img or cracks_img
 
     # ── photo quality validation ────────────────────────────────────────────
@@ -129,4 +132,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host="0.0.0.0", port=7860)
