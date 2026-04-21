@@ -106,6 +106,9 @@ body{background:#080808;color:#fff;font-family:'JetBrains Mono',monospace;overfl
   .hero-badge{padding:6px 12px!important;font-size:8px!important}
   .hero-desc{font-size:12px!important; padding: 0 10px !important;}
 }
+  @media(max-width:640px) {
+  .hero-radar svg { animation: none !important; }
+}
 
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
 @media(max-width:640px){.grid3{grid-template-columns:1fr!important}}
@@ -993,7 +996,7 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onFileChange} />
+      <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
 }
@@ -1415,8 +1418,10 @@ function DiagnosePage({ isMobile }) {
     const fd = new FormData();
     SLOTS.forEach(s => { if (files[s.id]) fd.append(s.id, files[s.id]); });
     try {
-     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
-const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd });
+//      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd });
+
+const res = await fetch("http://localhost:5000/predict", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
       setResult(data);
