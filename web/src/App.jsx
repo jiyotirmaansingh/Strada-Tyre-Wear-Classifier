@@ -1418,10 +1418,10 @@ function DiagnosePage({ isMobile }) {
     const fd = new FormData();
     SLOTS.forEach(s => { if (files[s.id]) fd.append(s.id, files[s.id]); });
     try {
-//      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
-// const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd });
+     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd });
 
-const res = await fetch("http://localhost:5000/predict", { method: "POST", body: fd });
+// const res = await fetch("http://localhost:5000/predict", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
       setResult(data);
