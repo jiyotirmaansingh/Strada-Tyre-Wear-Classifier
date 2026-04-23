@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 
+
 def check_blur(img_gray: np.ndarray) -> dict:
     """Laplacian variance — low = blurry."""
     import cv2
@@ -67,32 +68,43 @@ def check_tyre_present(img_gray: np.ndarray) -> dict:
 
 
 class PhotoValidator:
-    def validate(self, pil_image: Image.Image) -> dict:
-        """
-        Returns:
-        {
-            "valid": True/False,
-            "errors":   [...],   # blocking issues
-            "warnings": [...],   # non-blocking
-        }
-        """
-        import cv2
+    def validate(self, image):
+        import numpy as np
+        import cv2   # <-- added missing import
 
-        img_gray = np.array(pil_image.convert("L"))
+        img = np.array(image)
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        h, w = gray.shape
+        
+        errors = []
+        warnings = []
 
-        checks = [
-            check_size(pil_image),
-            check_blur(img_gray),
-            check_brightness(img_gray),
-            check_tyre_present(img_gray),
-            check_wet(img_gray),
-        ]
+        # Blur check
+        lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+        if lap_var < 40:
+            errors.append("Image is too blurry. Please retake with better focus.")
 
-        errors   = [c["issue"]   for c in checks if not c["passed"] and "issue"   in c]
-        warnings = [c["warning"] for c in checks if     c.get("passed") and "warning" in c]
+        # Brightness check
+        brightness = gray.mean()
+        if brightness < 25:
+            errors.append("Image is too dark. Use flash or better lighting.")
+        if brightness > 235:
+            errors.append("Image is overexposed. Reduce lighting or avoid flash glare.")
+
+        # Tyre-like content check
+        dark_px_ratio = np.sum(gray < 80) / gray.size
+        edge_density = cv2.Canny(gray, 50, 150).mean()
+
+        if dark_px_ratio < 0.08 and edge_density < 4:
+            errors.append("This does not appear to be a tyre image. Please upload a close-up photo of a tyre.")
+
+        # Aspect ratio sanity check
+        aspect = w / h if h > 0 else 1
+        if aspect > 5 or aspect < 0.2:
+            errors.append("Unusual image dimensions. Please upload a standard photo.")
 
         return {
-            "valid":    len(errors) == 0,
-            "errors":   errors,
+            "valid": len(errors) == 0,
+            "errors": errors,
             "warnings": warnings,
         }
