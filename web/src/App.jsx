@@ -174,7 +174,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothin
 @keyframes dataStream{0%{opacity:0;transform:translateY(-4px)}50%{opacity:1}100%{opacity:0;transform:translateY(4px)}}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes notchReveal{from{transform:translateY(-8px) scaleX(0.85);opacity:0}to{transform:translateY(0) scaleX(1);opacity:1}}
-@keyframes pickerIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 
 /* ── Slot upload spring ── */
 @keyframes slotAdded{0%{transform:scale(0.9);opacity:0.5}50%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
@@ -224,7 +223,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothin
 .report-dot-pulse{animation:pulse 2.2s infinite}
 .hero-btn-glow{animation:glowPulse 3.5s ease-in-out infinite}
 .spring-in{animation:springIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both}
-.picker-in{animation:pickerIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both}
 
 /* ─ Custom cursor (desktop) ─ */
 #strada-cursor{position:fixed;top:0;left:0;pointer-events:none;z-index:9999;width:11px;height:11px;border-radius:50%;background:#f97316;mix-blend-mode:difference;transform:translate(-50%,-50%);will-change:transform;transition:width .18s,height .18s}
@@ -787,34 +785,20 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
   );
 }
 
-// ─── SLOT TILE ────────────────────────────────────────────────────────────────
-// ↳ FIX: replaced single <input capture> with a gallery/camera picker overlay.
-//   On mobile, tapping an empty slot shows a choice sheet instead of jumping
-//   straight to the camera. On desktop the overlay is bypassed and the gallery
-//   file-picker opens directly (no capture attribute = standard OS dialog).
 function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, onDrop, onRemove, onFileChange }) {
   const [preview, setPreview] = useState(null);
   const [justAdded, setJustAdded] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const T = useTokens();
   const { ref: rippleRef, trigger: triggerRipple } = useRipple();
   const pressRef = usePressEffect({ scale: file ? 1 : 0.96, hapticType: file ? "light" : "medium" });
-
-  // Internal ref for the camera-specific input
-  const cameraInputRef = useRef(null);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768);
-    check();
-    window.addEventListener("resize", check, { passive: true });
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  // Own ref so we can always call .click() reliably
+  const ownInputRef = useRef(null);
 
   useEffect(() => {
     if (!file) { setPreview(null); return; }
-    const url = URL.createObjectURL(file);
+    let url;
+    try { url = URL.createObjectURL(file); } catch(_) { return; }
     setPreview(url);
     setJustAdded(true);
     haptic("success");
@@ -822,60 +806,38 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
     return () => { URL.revokeObjectURL(url); clearTimeout(t); };
   }, [file]);
 
-  // Merge refs for ripple + press effect
-  const setRef = (el) => {
+  // Merge tile refs (ripple + press)
+  const setTileRef = (el) => {
     rippleRef.current = el;
-    if (typeof pressRef === "object" && pressRef) pressRef.current = el;
+    if (pressRef && typeof pressRef === "object") pressRef.current = el;
+  };
+
+  // Merge input refs (parent callback ref + own ref)
+  const setInputRef = (el) => {
+    ownInputRef.current = el;
+    if (typeof inputRef === "function") inputRef(el);
+    else if (inputRef && typeof inputRef === "object") inputRef.current = el;
   };
 
   const handleTileClick = (e) => {
-    if (file) return; // already has image — remove button handles it
-    if (isMobile) {
-      // Show gallery/camera choice on mobile
-      triggerRipple(e);
-      setShowPicker(true);
-      haptic("light");
-    } else {
-      // Desktop: open gallery file picker directly
-      triggerRipple(e);
-      inputRef?.click?.();
-    }
-  };
-
-  const handleGalleryClick = (e) => {
-    e.stopPropagation();
-    setShowPicker(false);
-    haptic("light");
-    inputRef?.click?.();
-  };
-
-  const handleCameraClick = (e) => {
-    e.stopPropagation();
-    setShowPicker(false);
-    haptic("medium");
-    cameraInputRef.current?.click();
-  };
-
-  const handleCancelPicker = (e) => {
-    e.stopPropagation();
-    setShowPicker(false);
+    if (file) return;
+    triggerRipple(e);
+    ownInputRef.current?.click();
   };
 
   return (
     <div
-      ref={setRef}
+      ref={setTileRef}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={justAdded ? "slot-added" : ""}
+      onClick={handleTileClick}
       style={{
-        position: "relative",
-        height: "clamp(90px,15vh,130px)",
-        borderRadius: 12,
-        overflow: "hidden",
-        cursor: file ? "default" : "pointer",
+        position: "relative", height: "clamp(90px,15vh,130px)", borderRadius: 12,
+        overflow: "hidden", cursor: file ? "default" : "pointer",
         transition: "border-color 0.2s, box-shadow 0.2s",
         WebkitTapHighlightColor: "transparent",
         ...(isDragging
@@ -884,16 +846,12 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           ? { background: "rgba(0,0,0,0.45)", border: `1px solid ${T.border}` }
           : { background: T.ghost, border: `1px dashed ${T.border}` })
       }}
-      onClick={handleTileClick}
     >
-      {/* ── Filled state ── */}
       {preview ? (
         <>
           <img src={preview} alt={slot.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          <div style={{ position: "absolute", inset: 0, background: hovered ? "rgba(0,0,0,0.55)" : "transparent", transition: "background 0.2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {hovered && (
-              <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ background: "rgba(239,68,68,0.9)", border: "none", color: "white", fontSize: 10, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 7, cursor: "pointer" }}>✕ REMOVE</button>
-            )}
+          <div style={{ position: "absolute", inset: 0, background: hovered ? "rgba(0,0,0,0.55)" : "transparent", transition: "background 0.2s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {hovered && <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ background: "rgba(239,68,68,0.9)", border: "none", color: "white", fontSize: 10, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 7, cursor: "pointer" }}>✕ REMOVE</button>}
           </div>
           <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.75)", fontSize: 11, WebkitTapHighlightColor: "transparent" }}>✕</button>
           <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(16,185,129,0.88)", backdropFilter: "blur(8px)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "white", letterSpacing: "0.08em" }}>✓</div>
@@ -902,7 +860,6 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </>
       ) : (
-        /* ── Empty state ── */
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 7, padding: 8 }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", background: isDragging ? `${T.accent}1e` : T.ghost, flexShrink: 0, transition: "all 0.2s" }}>
             <span style={{ color: isDragging ? T.accent : T.textMuted, fontSize: 15, lineHeight: 1 }}>{isDragging ? "↓" : slot.icon}</span>
@@ -913,101 +870,8 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-
-      {/* ── Gallery / Camera picker overlay (mobile only, shown on tap) ── */}
-      {showPicker && !file && (
-        <div
-          className="picker-in"
-          onClick={e => e.stopPropagation()}
-          style={{
-            position: "absolute", inset: 0, zIndex: 20,
-            background: "rgba(0,0,0,0.82)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            gap: 10, borderRadius: 12,
-          }}
-        >
-          {/* Slot label */}
-          <p style={{ fontSize: 9, color: "rgba(255,255,255,0.38)", letterSpacing: "0.14em", margin: "0 0 4px", textTransform: "uppercase" }}>{slot.label}</p>
-
-          {/* Gallery button */}
-          <button
-            onClick={handleGalleryClick}
-            style={{
-              background: "rgba(255,255,255,0.10)",
-              border: "1px solid rgba(255,255,255,0.18)",
-              color: "white",
-              fontSize: 11,
-              letterSpacing: "0.08em",
-              padding: "11px 0",
-              borderRadius: 10,
-              cursor: "pointer",
-              width: 148,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 600,
-            }}
-          >
-            🖼 GALLERY
-          </button>
-
-          {/* Camera button */}
-          <button
-            onClick={handleCameraClick}
-            style={{
-              background: `rgba(249,115,22,0.18)`,
-              border: `1px solid rgba(249,115,22,0.42)`,
-              color: "#f97316",
-              fontSize: 11,
-              letterSpacing: "0.08em",
-              padding: "11px 0",
-              borderRadius: 10,
-              cursor: "pointer",
-              width: 148,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 600,
-            }}
-          >
-            📷 CAMERA
-          </button>
-
-          {/* Cancel */}
-          <button
-            onClick={handleCancelPicker}
-            style={{
-              background: "none", border: "none",
-              color: "rgba(255,255,255,0.32)",
-              fontSize: 10, cursor: "pointer",
-              marginTop: 2, letterSpacing: "0.1em",
-              padding: "6px 12px",
-            }}
-          >
-            cancel
-          </button>
-        </div>
-      )}
-
-      {/* ── Gallery input (no capture — opens Photos / Files on mobile) ── */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={onFileChange}
-      />
-
-      {/* ── Camera input (capture="environment" — opens camera directly) ── */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: "none" }}
-        onChange={onFileChange}
-      />
+      {/* No capture attr — OS shows native Gallery/Camera/Files sheet on mobile, standard dialog on desktop */}
+      <input ref={setInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
 }
@@ -1400,7 +1264,9 @@ function DiagnosePage({ isMobile }) {
   const G = useG(); const T = useTokens();
 
   const handleUpload = useCallback((id, file) => {
+    // Validate file type
     if (!file.type.startsWith("image/")) { return; }
+    // Validate file size (10MB max)
     if (file.size > 10 * 1024 * 1024) { return; }
     setFiles(p => ({ ...p, [id]: file })); setResult(null); setError(null);
   }, []);
@@ -1484,6 +1350,7 @@ export default function App() {
 
   useEffect(() => {
     document.body.className = theme === "dark" ? "dark-mode" : "light-mode";
+    // Update meta theme-color for iOS
     let meta = document.querySelector("meta[name='theme-color']");
     if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
     meta.content = theme === "dark" ? "#060608" : "#f7f4f0";
