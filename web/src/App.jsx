@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from "react";
+import ReactDOM from "react-dom";
 // ─── THEME CONTEXT ────────────────────────────────────────────────────────────
 const ThemeContext = createContext({ theme: "dark", toggleTheme: () => {} });
 const useTheme = () => useContext(ThemeContext);
@@ -68,7 +69,7 @@ function usePressEffect(options = {}) {
     const el = ref.current;
     if (!el || disabled) return;
 
-    const onStart = (e) => {
+    const onStart = () => {
       pressedRef.current = true;
       haptic(hapticType);
       el.style.transform = `scale(${scale})`;
@@ -295,6 +296,9 @@ body.dark-mode{background:#060608;color:#f0eff5}
 /* ─ Focus ring (accessibility) ─ */
 button:focus-visible,a:focus-visible{outline:2px solid rgba(249,115,22,0.7);outline-offset:3px;border-radius:6px}
 
+/* ── Report overlay (portal) ── */
+.strada-report-portal{position:fixed;inset:0;z-index:800;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+
 /* ══════════════════════════════════════════════
    PRINT STYLES
    ══════════════════════════════════════════════ */
@@ -447,6 +451,8 @@ function ShopLocator() {
   const mapContainerRef = useRef(null); const mapInstanceRef = useRef(null);
   const G = useG(); const T = useTokens();
 
+  // FIX: fetchShops is stable (useCallback with no deps that change), so it's
+  // safe to call it from both locate() and the radius-change effect.
   const fetchShops = useCallback(async (lat, lng, rad) => {
     setStatus("loading"); setShops([]); setSelected(null);
     const r = rad * 1000;
@@ -470,7 +476,15 @@ function ShopLocator() {
     );
   }, [radius, fetchShops]);
 
-  useEffect(() => { if (coords && status !== "locating") fetchShops(coords.lat, coords.lng, radius); }, [radius]); // eslint-disable-line
+  // FIX: use a ref to track coords so we don't need coords in the dep array,
+  // avoiding a stale-closure re-fetch on first mount.
+  const coordsRef = useRef(null);
+  useEffect(() => { coordsRef.current = coords; }, [coords]);
+
+  useEffect(() => {
+    if (!coordsRef.current) return;
+    fetchShops(coordsRef.current.lat, coordsRef.current.lng, radius);
+  }, [radius, fetchShops]);
 
   useEffect(() => {
     if (status !== "done" || !coords) return;
@@ -791,7 +805,6 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
   const T = useTokens();
   const { ref: rippleRef, trigger: triggerRipple } = useRipple();
   const pressRef = usePressEffect({ scale: file ? 1 : 0.96, hapticType: file ? "light" : "medium" });
-  // Own ref so we can always call .click() reliably
   const ownInputRef = useRef(null);
 
   useEffect(() => {
@@ -805,13 +818,11 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
     return () => { URL.revokeObjectURL(url); clearTimeout(t); };
   }, [file]);
 
-  // Merge tile refs (ripple + press)
   const setTileRef = (el) => {
     rippleRef.current = el;
     if (pressRef && typeof pressRef === "object") pressRef.current = el;
   };
 
-  // Merge input refs (parent callback ref + own ref)
   const setInputRef = (el) => {
     ownInputRef.current = el;
     if (typeof inputRef === "function") inputRef(el);
@@ -869,7 +880,6 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-      {/* No capture attr — OS shows native Gallery/Camera/Files sheet on mobile, standard dialog on desktop */}
       <input ref={setInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
@@ -1036,7 +1046,6 @@ function GradCamDisplay({ base64, originalBase64 }) {
   );
 }
 
-// ─── PRINT REPORT ─────────────────────────────────────────────────────────────
 // ─── PRINT REPORT ─────────────────────────────────────────────────────────────
 function PrintReport({ result }) {
   if (!result) return null;
@@ -1222,7 +1231,17 @@ function ReportPage({ result, previews, onClose }) {
   const [tyreAge, setTyreAge] = useState(result.tyre_age);
   const [isMobile, setIsMobile] = useState(false);
   const G = useG(); const T = useTokens();
-  useEffect(() => { setIsMobile(window.innerWidth <= 640); }, []);
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth <= 640);
+    // FIX: Use a class on <html> instead of mutating body styles directly,
+    // which avoids fighting with the rest of the app and works better on iOS.
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => { html.style.overflow = prev; };
+  }, []);
+
   const printResult = { ...result, tyre_age: tyreAge };
 
   const handlePrint = () => {
@@ -1234,7 +1253,13 @@ function ReportPage({ result, previews, onClose }) {
   const printRef = usePressEffect({ scale: 0.93, hapticType: "light" });
 
   return (
-   <div style={{ position: "fixed", inset: 0, zIndex: 800, overflowY: "scroll", overflowX: "hidden", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", background: T.bg, animation: "slideUp 0.38s cubic-bezier(0.16,1,0.3,1)", touchAction: "pan-y" }}>
+    // FIX: The portal renders this directly on document.body. Give it its own
+    // scroll container via the CSS class `.strada-report-portal` so it doesn't
+    // fight with the parent page scroll context on iOS Safari.
+    <div
+      className="strada-report-portal"
+      style={{ background: T.bg, animation: "slideUp 0.38s cubic-bezier(0.16,1,0.3,1)" }}
+    >
       <PrintReport result={printResult} />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: `clamp(20px,5vh,64px) clamp(14px,4vw,28px) ${isMobile ? "100px" : "48px"}` }}>
         <div className="report-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 14 }}>
@@ -1351,9 +1376,7 @@ function DiagnosePage({ isMobile }) {
   const G = useG(); const T = useTokens();
 
   const handleUpload = useCallback((id, file) => {
-    // Validate file type
     if (!file.type.startsWith("image/")) { return; }
-    // Validate file size (10MB max)
     if (file.size > 10 * 1024 * 1024) { return; }
     setFiles(p => ({ ...p, [id]: file })); setResult(null); setError(null);
   }, []);
@@ -1363,19 +1386,43 @@ function DiagnosePage({ isMobile }) {
   const uploadedCount = Object.keys(files).length;
   const canAnalyse = uploadedCount >= 1;
 
-  const previews = useMemo(() => SLOTS.filter(s => files[s.id]).map(s => {
-    try { return { label: s.label, url: URL.createObjectURL(files[s.id]) }; }
-    catch(_) { return null; }
-  }).filter(Boolean), [files]);
+  // FIX: Track object URLs in a ref so cleanup doesn't cause infinite re-renders.
+  // The previous useMemo + useEffect combo would re-run cleanup every render
+  // because previews (with newly created URLs) was in the effect dep array.
+  const previewUrlsRef = useRef({});
+  const previews = useMemo(() => {
+    // Revoke URLs for slots that no longer have files
+    Object.keys(previewUrlsRef.current).forEach(id => {
+      if (!files[id]) {
+        try { URL.revokeObjectURL(previewUrlsRef.current[id].url); } catch(_) {}
+        delete previewUrlsRef.current[id];
+      }
+    });
+    // Create URLs only for new slots
+    SLOTS.forEach(s => {
+      if (files[s.id] && !previewUrlsRef.current[s.id]) {
+        try {
+          previewUrlsRef.current[s.id] = { label: s.label, url: URL.createObjectURL(files[s.id]) };
+        } catch(_) {}
+      }
+    });
+    return SLOTS.filter(s => previewUrlsRef.current[s.id]).map(s => previewUrlsRef.current[s.id]);
+  }, [files]);
 
-  useEffect(() => { return () => previews.forEach(p => { try { URL.revokeObjectURL(p.url); } catch(_) {} }); }, [previews]);
+  // Revoke all URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(previewUrlsRef.current).forEach(({ url }) => {
+        try { URL.revokeObjectURL(url); } catch(_) {}
+      });
+    };
+  }, []);
 
   const handleAnalyse = async () => {
     setLoading(true); setError(null); setResult(null); haptic("medium");
     const fd = new FormData();
     SLOTS.forEach(s => { if (files[s.id]) fd.append(s.id, files[s.id]); });
     try {
-      // const API_BASE = (typeof window !== "undefined" && window.__VITE_API_URL__) || "http://localhost:5000";
       const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -1398,7 +1445,16 @@ function DiagnosePage({ isMobile }) {
 
   return (
     <div className="page-enter" style={{ maxWidth: 720, margin: "0 auto", padding: `clamp(72px,10vh,106px) clamp(14px,5vw,28px) ${isMobile ? "100px" : "80px"}` }}>
-      {showReport && result && <ReportPage result={result} previews={previews} onClose={() => { setShowReport(false); haptic("light"); }} />}
+      {/* FIX: Render ReportPage via a portal so it sits directly on document.body,
+           avoiding any stacking context / overflow clipping issues on mobile. */}
+      {showReport && result && ReactDOM.createPortal(
+        <ReportPage
+          result={result}
+          previews={previews}
+          onClose={() => { setShowReport(false); haptic("light"); }}
+        />,
+        document.body
+      )}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}><div style={{ height: 1, width: 24, background: `linear-gradient(90deg,${T.accent},transparent)` }} /><p style={{ fontSize: 10, color: T.accent, letterSpacing: "0.2em", margin: 0 }}>TYRE DIAGNOSTIC</p></div>
         <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(30px,7vw,58px)", color: T.text, letterSpacing: "-0.03em", margin: "0 0 10px", lineHeight: 1 }}>ANALYSE TYRES</h2>
@@ -1438,7 +1494,6 @@ export default function App() {
 
   useEffect(() => {
     document.body.className = theme === "dark" ? "dark-mode" : "light-mode";
-    // Update meta theme-color for iOS
     let meta = document.querySelector("meta[name='theme-color']");
     if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
     meta.content = theme === "dark" ? "#060608" : "#f7f4f0";
