@@ -1288,7 +1288,8 @@ function DiagnosePage({ isMobile }) {
     const fd = new FormData();
     SLOTS.forEach(s => { if (files[s.id]) fd.append(s.id, files[s.id]); });
     try {
-      const API_BASE = (typeof window !== "undefined" && window.__VITE_API_URL__) || "http://localhost:5000";
+      // const API_BASE = (typeof window !== "undefined" && window.__VITE_API_URL__) || "http://localhost:5000";
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd, signal: controller.signal });
