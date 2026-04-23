@@ -302,9 +302,8 @@ button:focus-visible,a:focus-visible{outline:2px solid rgba(249,115,22,0.7);outl
   body * { visibility: hidden !important; }
   #strada-print-report, #strada-print-report * { visibility: visible !important; }
   #strada-print-report { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; z-index: 99999 !important; }
-  body { background: #fff !important; color: #111 !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-  @page { size: A4 portrait; margin: 14mm 16mm; }
-  .pr-page-break { page-break-before: always; }
+  body { background: #fff !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { size: A4 portrait; margin: 0; }
 }
 `;
 
@@ -1038,90 +1037,178 @@ function GradCamDisplay({ base64, originalBase64 }) {
 }
 
 // ─── PRINT REPORT ─────────────────────────────────────────────────────────────
+// ─── PRINT REPORT ─────────────────────────────────────────────────────────────
 function PrintReport({ result }) {
   if (!result) return null;
   const u = URGENCY[result.urgency] || URGENCY.medium;
   const now = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   const time = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  const health = result.health; const depth = result.tread_depth;
-  const depthPct = Math.min((depth?.depth_mm / 9) * 100, 100) || 0;
+  const health = result.health || {};
+  const depth = result.tread_depth || {};
+  const tyreAge = result.tyre_age || {};
+  const depthPct = Math.min(((depth.depth_mm || 0) / 9) * 100, 100);
   const depthColor = depthPct >= 60 ? "#059669" : depthPct >= 25 ? "#d97706" : "#dc2626";
-  const urgencyColor = result.urgency === "high" ? "#dc2626" : result.urgency === "medium" ? "#d97706" : "#059669";
-  const gradeColor = health?.color === "green" ? "#059669" : health?.color === "yellow" ? "#d97706" : "#dc2626";
+  const urgColor = result.urgency === "high" ? "#dc2626" : result.urgency === "medium" ? "#d97706" : "#059669";
+  const urgBg = result.urgency === "high" ? "#fef2f2" : result.urgency === "medium" ? "#fffbeb" : "#f0fdf4";
+  const gradeColor = health.color === "green" ? "#059669" : health.color === "yellow" ? "#d97706" : "#dc2626";
+
   return (
-    <div id="strada-print-report" style={{ display: "none", fontFamily: "Arial, sans-serif", background: "#ffffff", color: "#111111", padding: "0", margin: "0" }}>
-      <div style={{ padding: "24px 32px", maxWidth: "100%", background: "#fff" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #111", paddingBottom: 12, marginBottom: 16 }}>
-          <div><div style={{ fontWeight: 900, fontSize: 28, letterSpacing: "-0.02em", lineHeight: 1 }}>STRADA</div><div style={{ fontSize: 9, color: "#666", letterSpacing: "0.14em", marginTop: 2 }}>AI TYRE DIAGNOSTIC REPORT</div></div>
-          <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "#444" }}>Generated: {now} at {time}</div><div style={{ fontSize: 9, color: "#888", marginTop: 2 }}>STRADA Tyre Intelligence System</div></div>
-        </div>
-        <div style={{ background: result.urgency === "high" ? "#fef2f2" : result.urgency === "medium" ? "#fffbeb" : "#f0fdf4", border: `2px solid ${urgencyColor}`, borderRadius: 6, padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: urgencyColor, flexShrink: 0 }} />
-          <div><span style={{ fontWeight: 800, fontSize: 13, color: urgencyColor, letterSpacing: "0.08em" }}>{u.label}</span><span style={{ fontSize: 12, color: "#444", marginLeft: 10 }}>{result.recommendation}</span></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 4 }}>HEALTH GRADE</div>
-            <div style={{ fontSize: 36, fontWeight: 900, color: gradeColor, lineHeight: 1 }}>{health?.grade}</div>
-            <div style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{health?.score} / 100</div>
+    <div id="strada-print-report" style={{ display: "none" }}>
+      <div style={{
+        fontFamily: "'Helvetica Neue', Arial, sans-serif",
+        background: "#fff", color: "#111",
+        padding: "12mm 14mm",
+        fontSize: 9,
+        lineHeight: 1.4,
+        maxWidth: "100%",
+      }}>
+
+        {/* ── HEADER ── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2pt solid #111", paddingBottom: 8, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: "-0.02em", lineHeight: 1 }}>STRADA</div>
+            <div style={{ fontSize: 7, color: "#888", letterSpacing: "0.14em", marginTop: 2 }}>AI TYRE DIAGNOSTIC REPORT — FOR TYRE SHOP USE</div>
           </div>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "10px 12px" }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 4 }}>TREAD DEPTH</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: depthColor, lineHeight: 1 }}>{depth?.depth_mm}<span style={{ fontSize: 14, fontWeight: 400, color: "#555" }}> mm</span></div>
-            <div style={{ height: 5, background: "#f3f4f6", borderRadius: 3, marginTop: 6 }}><div style={{ height: "100%", width: `${depthPct}%`, background: depthColor, borderRadius: 3 }} /></div>
-            <div style={{ fontSize: 8, color: "#888", marginTop: 3 }}>Legal min: 1.6 mm · New: 9 mm</div>
-            {depth?.remaining_km != null && <div style={{ fontSize: 9, color: "#555", marginTop: 2 }}>~{depth.remaining_km.toLocaleString()} km est. remaining</div>}
-          </div>
-          <div style={{ border: `2px solid ${urgencyColor}`, borderRadius: 6, padding: "10px 12px", background: result.urgency === "high" ? "#fef2f2" : result.urgency === "medium" ? "#fffbeb" : "#f0fdf4" }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 4 }}>URGENCY LEVEL</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: urgencyColor, lineHeight: 1.2 }}>{u.label}</div>
-            <div style={{ fontSize: 9, color: "#555", marginTop: 4, lineHeight: 1.4 }}>{result.urgency === "high" ? "Immediate replacement required." : result.urgency === "medium" ? "Schedule replacement within 2–4 weeks." : "Monitor regularly."}</div>
-          </div>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "10px 12px" }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 4 }}>TYRE AGE</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: result.tyre_age?.status === "Replace" ? "#dc2626" : "#111", lineHeight: 1.2 }}>{result.tyre_age?.age_display || "Unknown"}</div>
-            <div style={{ fontSize: 9, color: "#666", marginTop: 4, lineHeight: 1.4 }}>{result.tyre_age?.manufacture || ""}</div>
-            {!result.tyre_age?.dot_found && <div style={{ fontSize: 8, color: "#d97706", marginTop: 2 }}>⚠ DOT code not detected</div>}
+          <div style={{ textAlign: "right", fontSize: 8, color: "#555" }}>
+            <div>{now} at {time}</div>
+            <div style={{ color: "#aaa", marginTop: 2 }}>STRADA Tyre Intelligence</div>
           </div>
         </div>
-        {result.health?.breakdown && (
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "12px 14px", marginBottom: 16 }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 10 }}>DIAGNOSTIC SCORE BREAKDOWN</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {Object.entries(result.health.breakdown).map(([k, v]) => {
-                const pct2 = (v.score / v.max) * 100; const bc = pct2 >= 70 ? "#059669" : pct2 >= 40 ? "#d97706" : "#dc2626";
-                return (<div key={k}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, marginBottom: 2 }}><span style={{ color: "#444", textTransform: "uppercase", letterSpacing: "0.06em" }}>{k}</span><span style={{ color: "#888" }}>{v.score}/{v.max} — {v.label}</span></div><div style={{ height: 4, background: "#f3f4f6", borderRadius: 2 }}><div style={{ height: "100%", width: `${pct2}%`, background: bc, borderRadius: 2 }} /></div></div>);
+
+        {/* ── URGENCY BANNER ── */}
+        <div style={{ background: urgBg, border: `1.5pt solid ${urgColor}`, borderRadius: 4, padding: "7px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 9, height: 9, borderRadius: "50%", background: urgColor, flexShrink: 0 }} />
+          <span style={{ fontWeight: 800, fontSize: 11, color: urgColor, letterSpacing: "0.08em" }}>{u.label}</span>
+          <span style={{ fontSize: 9, color: "#333", flex: 1 }}>{result.recommendation || ""}</span>
+        </div>
+
+        {/* ── 4 KPI BOXES ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+          {/* Health Grade */}
+          <div style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "8px 10px", textAlign: "center", background: "#fafafa" }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Health Grade</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: gradeColor, lineHeight: 1 }}>{health.grade || "?"}</div>
+            <div style={{ fontSize: 8, color: "#555", marginTop: 2 }}>{health.score || 0}/100</div>
+          </div>
+          {/* Tread Depth */}
+          <div style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "8px 10px", background: "#fafafa" }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Tread Depth</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: depthColor, lineHeight: 1 }}>{depth.depth_mm || "?"}<span style={{ fontSize: 10, fontWeight: 400, color: "#888" }}> mm</span></div>
+            <div style={{ height: 4, background: "#eee", borderRadius: 2, margin: "4px 0 3px" }}>
+              <div style={{ height: "100%", width: `${depthPct}%`, background: depthColor, borderRadius: 2 }} />
+            </div>
+            <div style={{ fontSize: 6.5, color: "#888" }}>Legal min: 1.6 mm · New: 9 mm</div>
+            {depth.remaining_km != null && <div style={{ fontSize: 7, color: "#555", marginTop: 2 }}>~{Number(depth.remaining_km).toLocaleString()} km est.</div>}
+          </div>
+          {/* Urgency */}
+          <div style={{ border: `1.5pt solid ${urgColor}`, borderRadius: 4, padding: "8px 10px", background: urgBg }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Urgency</div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: urgColor, lineHeight: 1.2 }}>{u.label}</div>
+            <div style={{ fontSize: 7, color: "#555", marginTop: 4, lineHeight: 1.4 }}>
+              {result.urgency === "high" ? "Replace immediately." : result.urgency === "medium" ? "Replace within 2–4 weeks." : "Monitor regularly."}
+            </div>
+          </div>
+          {/* Tyre Age */}
+          <div style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "8px 10px", background: "#fafafa" }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.12em", marginBottom: 3, textTransform: "uppercase" }}>Tyre Age</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: tyreAge.status === "Replace" ? "#dc2626" : "#111", lineHeight: 1.2 }}>{tyreAge.age_display || "Unknown"}</div>
+            <div style={{ fontSize: 7, color: "#666", marginTop: 3, lineHeight: 1.4 }}>{tyreAge.manufacture || ""}</div>
+            {!tyreAge.dot_found && <div style={{ fontSize: 6.5, color: "#d97706", marginTop: 2 }}>⚠ DOT not detected</div>}
+          </div>
+        </div>
+
+        {/* ── DIAGNOSTICS ROW ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+          {[
+            ["Wear Level", result.wear_level || "—", result.urgency === "high"],
+            ["Wear Pattern", result.pattern || "—", false],
+            ["Sidewall", result.sidewall === "None" ? "No Damage" : (result.sidewall || "—"), result.sidewall && result.sidewall !== "None"],
+            ["Root Cause", result.cause || "—", false],
+          ].map(([label, val, highlight]) => (
+            <div key={label} style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "7px 10px", background: "#fafafa", borderLeft: highlight ? "3pt solid #dc2626" : undefined }}>
+              <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.1em", marginBottom: 3, textTransform: "uppercase" }}>{label}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: highlight ? "#dc2626" : "#111", lineHeight: 1.3 }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── SCORE BREAKDOWN ── */}
+        {health.breakdown && (
+          <div style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "8px 10px", marginBottom: 10, background: "#fafafa" }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.12em", marginBottom: 6, textTransform: "uppercase" }}>AI Sub-Scores</div>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Object.keys(health.breakdown).length}, 1fr)`, gap: 6 }}>
+              {Object.entries(health.breakdown).map(([k, v]) => {
+                const pct = v.max > 0 ? (v.score / v.max) * 100 : 0;
+                const c = pct >= 70 ? "#059669" : pct >= 40 ? "#d97706" : "#dc2626";
+                return (
+                  <div key={k}>
+                    <div style={{ fontSize: 6, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{k}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{v.score}/{v.max}</div>
+                    <div style={{ height: 3, background: "#eee", borderRadius: 2, marginTop: 2 }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 2 }} />
+                    </div>
+                    <div style={{ fontSize: 6, color: "#999", marginTop: 1 }}>{v.label || ""}</div>
+                  </div>
+                );
               })}
             </div>
           </div>
         )}
-        <div style={{ border: `1px solid ${urgencyColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: 6, padding: "10px 14px", marginBottom: 16, background: result.urgency === "high" ? "#fef2f2" : result.urgency === "medium" ? "#fffbeb" : "#f0fdf4" }}>
-          <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 4 }}>TECHNICIAN RECOMMENDATION</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#222", lineHeight: 1.6 }}>{result.recommendation}</div>
-        </div>
-        {result.warnings?.length > 0 && (
-          <div style={{ border: "1px solid #fcd34d", borderLeft: "4px solid #f59e0b", borderRadius: 6, padding: "10px 14px", marginBottom: 16, background: "#fffbeb" }}>
-            <div style={{ fontSize: 8, color: "#92400e", letterSpacing: "0.12em", marginBottom: 4 }}>IMAGE QUALITY WARNINGS</div>
-            {result.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: "#78350f", marginBottom: 2, lineHeight: 1.5 }}>• {w}</div>)}
+
+        {/* ── RECOMMENDATION + WARNINGS ── */}
+        <div style={{ display: "grid", gridTemplateColumns: result.warnings?.length ? "1fr 1fr" : "1fr", gap: 8, marginBottom: 10 }}>
+          <div style={{ border: `0.5pt solid ${urgColor}`, borderLeft: `3pt solid ${urgColor}`, borderRadius: 4, padding: "8px 10px", background: urgBg }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.1em", marginBottom: 4, textTransform: "uppercase" }}>Technician Recommendation</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "#222", lineHeight: 1.6 }}>{result.recommendation || "Consult a tyre specialist."}</div>
+            {depth.message && <div style={{ fontSize: 8, color: "#555", marginTop: 4, lineHeight: 1.5 }}>{depth.message}</div>}
           </div>
-        )}
-        <div style={{ border: "1px dashed #d1d5db", borderRadius: 6, padding: "12px 14px", marginBottom: 16 }}>
-          <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 8 }}>SHOP TECHNICIAN NOTES</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {["Tyre Replaced (Y/N)", "Replacement Tyre Size", "New Tread Depth (mm)", "Job Card / Invoice #"].map(field => (<div key={field}><div style={{ fontSize: 8, color: "#999", marginBottom: 2 }}>{field}</div><div style={{ height: 22, borderBottom: "1px solid #d1d5db" }} /></div>))}
-          </div>
-          <div style={{ marginTop: 10 }}><div style={{ fontSize: 8, color: "#999", marginBottom: 2 }}>ADDITIONAL OBSERVATIONS</div><div style={{ height: 40, borderBottom: "1px solid #d1d5db" }} /></div>
+          {result.warnings?.length > 0 && (
+            <div style={{ border: "0.5pt solid #fcd34d", borderLeft: "3pt solid #f59e0b", borderRadius: 4, padding: "8px 10px", background: "#fffbeb" }}>
+              <div style={{ fontSize: 6.5, color: "#92400e", letterSpacing: "0.1em", marginBottom: 4, textTransform: "uppercase" }}>Quality Warnings</div>
+              {result.warnings.map((w, i) => <div key={i} style={{ fontSize: 8, color: "#78350f", lineHeight: 1.5 }}>• {w}</div>)}
+            </div>
+          )}
         </div>
-        {result.gradcam_image && (
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "10px 14px", marginBottom: 16 }}>
-            <div style={{ fontSize: 8, color: "#888", letterSpacing: "0.12em", marginBottom: 8 }}>GRAD-CAM AI ATTENTION MAP</div>
-            <img src={`data:image/jpeg;base64,${result.gradcam_image}`} alt="Grad-CAM" style={{ width: 200, height: 150, objectFit: "contain", border: "1px solid #e5e7eb", borderRadius: 4 }} />
+
+        {/* ── GRAD-CAM + TECHNICIAN NOTES ── */}
+        <div style={{ display: "grid", gridTemplateColumns: result.gradcam_image ? "180px 1fr" : "1fr", gap: 10, marginBottom: 10 }}>
+          {result.gradcam_image && (
+            <div style={{ border: "0.5pt solid #ddd", borderRadius: 4, padding: "7px 8px", background: "#fafafa" }}>
+              <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.1em", marginBottom: 4, textTransform: "uppercase" }}>Grad-CAM Heatmap</div>
+              <img src={`data:image/jpeg;base64,${result.gradcam_image}`} alt="Grad-CAM" style={{ width: "100%", height: 110, objectFit: "contain", borderRadius: 3, border: "0.5pt solid #eee" }} />
+            </div>
+          )}
+          <div style={{ border: "0.5pt dashed #ccc", borderRadius: 4, padding: "8px 10px" }}>
+            <div style={{ fontSize: 6.5, color: "#888", letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>Technician Sign-Off</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {["Tyre Replaced (Y/N)", "Replacement Tyre Size", "New Tread Depth (mm)", "Job Card / Invoice #"].map(f => (
+                <div key={f}>
+                  <div style={{ fontSize: 6.5, color: "#999", marginBottom: 2 }}>{f}</div>
+                  <div style={{ height: 18, borderBottom: "0.5pt solid #bbb" }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 6.5, color: "#999", marginBottom: 2 }}>Observations / Notes</div>
+              <div style={{ height: 28, borderBottom: "0.5pt solid #bbb" }} />
+            </div>
+            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {["Technician Signature", "Date of Service", "Shop Stamp"].map(f => (
+                <div key={f}>
+                  <div style={{ height: 22, borderBottom: "0.5pt solid #bbb" }} />
+                  <div style={{ fontSize: 6.5, color: "#aaa", marginTop: 2 }}>{f}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 8, color: "#aaa", letterSpacing: "0.08em" }}>STRADA AI TYRE INTELLIGENCE — {now}</span>
-          <span style={{ fontSize: 8, color: "#aaa", letterSpacing: "0.06em" }}>AI AID — NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
         </div>
+
+        {/* ── FOOTER ── */}
+        <div style={{ borderTop: "0.5pt solid #e5e7eb", paddingTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 6.5, color: "#bbb", letterSpacing: "0.08em" }}>STRADA AI TYRE INTELLIGENCE · {now}</span>
+          <span style={{ fontSize: 6.5, color: "#bbb", letterSpacing: "0.06em" }}>AI DIAGNOSTIC AID — NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
+        </div>
+
       </div>
     </div>
   );
@@ -1147,7 +1234,7 @@ function ReportPage({ result, previews, onClose }) {
   const printRef = usePressEffect({ scale: 0.93, hapticType: "light" });
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 800, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", background: T.bg, animation: "slideUp 0.38s cubic-bezier(0.16,1,0.3,1)" }}>
+   <div style={{ position: "fixed", inset: 0, zIndex: 800, overflowY: "scroll", overflowX: "hidden", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", background: T.bg, animation: "slideUp 0.38s cubic-bezier(0.16,1,0.3,1)", touchAction: "pan-y" }}>
       <PrintReport result={printResult} />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: `clamp(20px,5vh,64px) clamp(14px,4vw,28px) ${isMobile ? "100px" : "48px"}` }}>
         <div className="report-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 14 }}>
