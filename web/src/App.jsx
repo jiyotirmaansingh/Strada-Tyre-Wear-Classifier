@@ -1366,6 +1366,30 @@ function ResultCard({ result, onViewReport }) {
   );
 }
 
+async function compressImage(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file);
+      }, "image/jpeg", 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 // ─── DIAGNOSE PAGE ────────────────────────────────────────────────────────────
 function DiagnosePage({ isMobile }) {
   const [files, setFiles] = useState({});
@@ -1375,11 +1399,15 @@ function DiagnosePage({ isMobile }) {
   const [showReport, setShowReport] = useState(false);
   const G = useG(); const T = useTokens();
 
-  const handleUpload = useCallback((id, file) => {
-    if (!file.type.startsWith("image/")) { return; }
-    if (file.size > 10 * 1024 * 1024) { return; }
-    setFiles(p => ({ ...p, [id]: file })); setResult(null); setError(null);
-  }, []);
+  const handleUpload = useCallback(async (id, file) => {
+  if (!file.type.startsWith("image/")) return;
+  if (file.size > 10 * 1024 * 1024) return;
+  
+  // Compress image before storing (fixes mobile crash with 5 large photos)
+  const compressed = await compressImage(file);
+  setFiles(p => ({ ...p, [id]: compressed }));
+  setResult(null); setError(null);
+}, []);
 
   const handleRemove = useCallback((id) => { setFiles(p => { const n = { ...p }; delete n[id]; return n; }); setResult(null); }, []);
 
