@@ -1,107 +1,91 @@
-"""
-Photo Quality Validator — Module 7
-Checks image quality before running ML models.
-Rejects blurry, dark, wet, or wrongly framed images.
-
-Returns a list of issues found + overall pass/fail.
-"""
-
+import io
 import numpy as np
 from PIL import Image
 
+# ── Tyre classifier using CLIP zero-shot ──────────────────────────────────────
+_clip_model = None
+_clip_processor = None
 
+def _load_clip():
+    global _clip_model, _clip_processor
+    if _clip_model is None:
+        from transformers import CLIPProcessor, CLIPModel
+        _clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        _clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    return _clip_model, _clip_processor
 
-def check_blur(img_gray: np.ndarray) -> dict:
-    """Laplacian variance — low = blurry."""
-    import cv2
-    lap_var = cv2.Laplacian(img_gray, cv2.CV_64F).var()
-    if lap_var < 30:
-        return {"passed": False, "issue": "Image is too blurry. Hold phone steady and retake."}
-    return {"passed": True}
-
-
-def check_brightness(img_gray: np.ndarray) -> dict:
-    """Mean brightness check."""
-    mean_brightness = img_gray.mean()
-    if mean_brightness < 40:
-        return {"passed": False, "issue": "Image is too dark. Move to better lighting or use flash."}
-    if mean_brightness > 220:
-        return {"passed": False, "issue": "Image is overexposed. Avoid direct sunlight on tyre."}
-    return {"passed": True}
-
-
-def check_size(pil_image: Image.Image) -> dict:
-    """Minimum resolution check."""
-    w, h = pil_image.size
-    if w < 200 or h < 200:
-        return {"passed": False, "issue": "Image resolution too low. Move closer to the tyre."}
-    return {"passed": True}
-
-
-def check_wet(img_gray: np.ndarray) -> dict:
-    """
-    Heuristic: wet tyres have high brightness variance and specular highlights.
-    High local contrast peaks = water reflections.
-    """
-    import cv2
-    _, bright_mask = cv2.threshold(img_gray, 200, 255, cv2.THRESH_BINARY)
-    bright_ratio   = bright_mask.sum() / (255 * bright_mask.size)
-    if bright_ratio > 0.15:
-        return {
-            "passed": True,   # don't block — just warn
-            "warning": "Tyre appears wet. Wet tyres may show deeper grooves than actual. Results may be less accurate."
-        }
-    return {"passed": True}
-
-
-def check_tyre_present(img_gray: np.ndarray) -> dict:
-    """
-    Basic check: tyre images have circular/curved dark regions.
-    Uses edge density as proxy — low edges = probably not a tyre photo.
-    """
-    import cv2
-    edges       = cv2.Canny(img_gray, 50, 150)
-    edge_ratio  = edges.sum() / (255 * edges.size)
-    if edge_ratio < 0.01:
-        return {"passed": False, "issue": "No tyre detected in image. Please photograph the tyre directly."}
-    return {"passed": True}
+def is_tyre_image(image: Image.Image) -> tuple[bool, float]:
+    """Returns (is_tyre, confidence_score)"""
+    try:
+        model, processor = _load_clip()
+        import torch
+        
+        labels = [
+            "a photo of a car tyre or tire",
+            "a photo of a vehicle wheel or tyre tread",
+            "a photo of rubber tyre sidewall or tread pattern",
+            "a photo of something that is not a tyre",
+            "a random photo, poster, person, food, or document",
+        ]
+        
+        inputs = processor(
+            text=labels,
+            images=image,
+            return_tensors="pt",
+            padding=True
+        )
+        
+        with torch.no_grad():
+            outputs = model(**inputs)
+            probs = outputs.logits_per_image.softmax(dim=1)[0]
+        
+        tyre_score = float(probs[0] + probs[1] + probs[2])
+        non_tyre_score = float(probs[3] + probs[4])
+        
+        is_tyre = tyre_score > 0.40
+        return is_tyre, tyre_score
+        
+    except Exception as e:
+        # If CLIP fails for any reason, let it through (fail open)
+        print(f"CLIP classifier error: {e}")
+        return True, 1.0
 
 
 class PhotoValidator:
-    def validate(self, image):
+    def validate(self, image: Image.Image) -> dict:
+        import cv2
         import numpy as np
-        import cv2   # <-- added missing import
-
-        img = np.array(image)
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        h, w = gray.shape
+        
+        img_array = np.array(image)
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         
         errors = []
         warnings = []
 
-        # Blur check
+        # ── Basic quality checks ──────────────────────────────────────────────
         lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        if lap_var < 40:
-            errors.append("Image is too blurry. Please retake with better focus.")
+        if lap_var < 35:
+            errors.append("Image is too blurry. Retake with better focus.")
 
-        # Brightness check
         brightness = gray.mean()
-        if brightness < 25:
+        if brightness < 20:
             errors.append("Image is too dark. Use flash or better lighting.")
-        if brightness > 235:
-            errors.append("Image is overexposed. Reduce lighting or avoid flash glare.")
+        elif brightness > 240:
+            errors.append("Image is overexposed. Reduce flash or glare.")
 
-        # Tyre-like content check
-        dark_px_ratio = np.sum(gray < 80) / gray.size
-        edge_density = cv2.Canny(gray, 50, 150).mean()
+        # ── Tyre content check via CLIP ───────────────────────────────────────
+        is_tyre, confidence = is_tyre_image(image)
+        if not is_tyre:
+            errors.append(
+                f"This doesn't look like a tyre image (confidence: {confidence:.0%}). "
+                "Please upload a clear photo of a tyre — tread, sidewall, or profile view."
+            )
 
-        if dark_px_ratio < 0.08 and edge_density < 4:
-            errors.append("This does not appear to be a tyre image. Please upload a close-up photo of a tyre.")
-
-        # Aspect ratio sanity check
-        aspect = w / h if h > 0 else 1
-        if aspect > 5 or aspect < 0.2:
-            errors.append("Unusual image dimensions. Please upload a standard photo.")
+        # ── Soft warnings ─────────────────────────────────────────────────────
+        if lap_var < 80:
+            warnings.append("Image appears slightly blurry. Results may be less accurate.")
+        if brightness < 60:
+            warnings.append("Image is quite dark. Consider using flash for better results.")
 
         return {
             "valid": len(errors) == 0,
