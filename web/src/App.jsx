@@ -907,7 +907,7 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onFileChange} />
+       <input ref={setInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
 }
