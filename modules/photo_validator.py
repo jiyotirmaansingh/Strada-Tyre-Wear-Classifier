@@ -1,112 +1,98 @@
-import io
+"""
+Photo Quality Validator — Module 7
+Checks image quality before running ML models.
+Rejects blurry, dark, wet, or wrongly framed images.
+
+Returns a list of issues found + overall pass/fail.
+"""
+
 import numpy as np
 from PIL import Image
 
-# ── Tyre classifier using CLIP zero-shot ──────────────────────────────────────
-_clip_model = None
-_clip_processor = None
 
-def _load_clip():
-    global _clip_model, _clip_processor
-    if _clip_model is None:
-        from transformers import CLIPProcessor, CLIPModel
-        _clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-        _clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    return _clip_model, _clip_processor
+def check_blur(img_gray: np.ndarray) -> dict:
+    """Laplacian variance — low = blurry."""
+    import cv2
+    lap_var = cv2.Laplacian(img_gray, cv2.CV_64F).var()
+    if lap_var < 30:
+        return {"passed": False, "issue": "Image is too blurry. Hold phone steady and retake."}
+    return {"passed": True}
 
-def is_tyre_image(image: Image.Image) -> tuple[bool, float]:
-    """Returns (is_tyre, confidence_score)"""
-    try:
-        model, processor = _load_clip()
-        import torch
-        
-        labels = [
-            "a photo of a car tyre or tire",
-            "a photo of a vehicle wheel or tyre tread",
-            "a photo of rubber tyre sidewall or tread pattern",
-            "a photo of something that is not a tyre",
-            "a random photo, poster, person, food, or document",
-        ]
-        
-        inputs = processor(
-            text=labels,
-            images=image,
-            return_tensors="pt",
-            padding=True
-        )
-        
-        with torch.no_grad():
-            outputs = model(**inputs)
-            probs = outputs.logits_per_image.softmax(dim=1)[0]
-        
-        tyre_score = float(probs[0] + probs[1] + probs[2])
-        non_tyre_score = float(probs[3] + probs[4])
-        
-        is_tyre = tyre_score > 0.40
-        return is_tyre, tyre_score
-        
-    except Exception as e:
-        # If CLIP fails for any reason, let it through (fail open)
-        print(f"CLIP classifier error: {e}")
-        return True, 1.0
+
+def check_brightness(img_gray: np.ndarray) -> dict:
+    """Mean brightness check."""
+    mean_brightness = img_gray.mean()
+    if mean_brightness < 40:
+        return {"passed": False, "issue": "Image is too dark. Move to better lighting or use flash."}
+    if mean_brightness > 220:
+        return {"passed": False, "issue": "Image is overexposed. Avoid direct sunlight on tyre."}
+    return {"passed": True}
+
+
+def check_size(pil_image: Image.Image) -> dict:
+    """Minimum resolution check."""
+    w, h = pil_image.size
+    if w < 200 or h < 200:
+        return {"passed": False, "issue": "Image resolution too low. Move closer to the tyre."}
+    return {"passed": True}
+
+
+def check_wet(img_gray: np.ndarray) -> dict:
+    """
+    Heuristic: wet tyres have high brightness variance and specular highlights.
+    High local contrast peaks = water reflections.
+    """
+    import cv2
+    _, bright_mask = cv2.threshold(img_gray, 200, 255, cv2.THRESH_BINARY)
+    bright_ratio   = bright_mask.sum() / (255 * bright_mask.size)
+    if bright_ratio > 0.15:
+        return {
+            "passed": True,   # don't block — just warn
+            "warning": "Tyre appears wet. Wet tyres may show deeper grooves than actual. Results may be less accurate."
+        }
+    return {"passed": True}
+
+
+def check_tyre_present(img_gray: np.ndarray) -> dict:
+    """
+    Basic check: tyre images have circular/curved dark regions.
+    Uses edge density as proxy — low edges = probably not a tyre photo.
+    """
+    import cv2
+    edges       = cv2.Canny(img_gray, 50, 150)
+    edge_ratio  = edges.sum() / (255 * edges.size)
+    if edge_ratio < 0.01:
+        return {"passed": False, "issue": "No tyre detected in image. Please photograph the tyre directly."}
+    return {"passed": True}
 
 
 class PhotoValidator:
-    def validate(self, image):
+    def validate(self, pil_image: Image.Image) -> dict:
+        """
+        Returns:
+        {
+            "valid": True/False,
+            "errors":   [...],   # blocking issues
+            "warnings": [...],   # non-blocking
+        }
+        """
         import cv2
-        import numpy as np
 
-        img = np.array(image)
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        h, w = gray.shape
+        img_gray = np.array(pil_image.convert("L"))
 
-        errors = []
-        warnings = []
+        checks = [
+            check_size(pil_image),
+            check_blur(img_gray),
+            check_brightness(img_gray),
+            check_tyre_present(img_gray),
+            check_wet(img_gray),
+        ]
 
-        # Blur
-        lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        if lap_var < 35:
-            errors.append("Image is too blurry. Retake with better focus.")
-
-        # Brightness
-        brightness = gray.mean()
-        if brightness < 20:
-            errors.append("Image is too dark. Use flash or better lighting.")
-        elif brightness > 240:
-            errors.append("Image is overexposed. Reduce glare.")
-
-        # Tyre check: tyres have high edge density AND significant dark regions
-        # A poster/document is bright+text-heavy; a tyre is dark+curved edges
-        dark_ratio = np.sum(gray < 90) / gray.size
-        edges = cv2.Canny(gray, 50, 150)
-        edge_density = edges.mean()
-
-        # Colorfulness check — a promotional poster is very colorful
-        # Convert to HSV and check saturation
-        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        sat_mean = hsv[:,:,1].mean()
-
-        # Reject if: very colorful + bright + low dark regions (poster-like)
-        is_poster_like = sat_mean > 80 and brightness > 140 and dark_ratio < 0.12
-        # Reject if: basically no dark content and no real edges (blank/screenshot)  
-        is_blank_like = dark_ratio < 0.05 and edge_density < 3
-
-        if is_poster_like:
-            errors.append("This doesn't look like a tyre photo. Please upload a tyre image — tread, sidewall, or profile view.")
-        elif is_blank_like:
-            errors.append("Image appears to be a screenshot or document, not a tyre photo.")
-
-        if lap_var < 80:
-            warnings.append("Image appears slightly blurry. Results may be less accurate.")
-        if brightness < 60:
-            warnings.append("Low lighting detected. Use flash for better accuracy.")
-
-        # Tyre appears wet
-        if lap_var > 80 and dark_ratio > 0.3 and edge_density < 8:
-            warnings.append("Tyre appears wet. Wet tyres may show deeper grooves than actual. Results may be less accurate.")
+        errors   = [c["issue"]   for c in checks if not c["passed"] and "issue"   in c]
+        warnings = [c["warning"] for c in checks if     c.get("passed") and "warning" in c]
 
         return {
-            "valid": len(errors) == 0,
-            "errors": errors,
+            "valid":    len(errors) == 0,
+            "errors":   errors,
             "warnings": warnings,
         }
