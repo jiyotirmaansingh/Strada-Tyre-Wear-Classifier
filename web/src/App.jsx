@@ -853,10 +853,7 @@ function AboutPage() {
 
 // ─── UPLOAD CARD ──────────────────────────────────────────────────────────────
 function UnifiedUploadCard({ files, onUpload, onRemove }) {
-  const [activeSlot, setActiveSlot] = useState(null);
-  const inputRefs = useRef({});
-  const uploadedCount = Object.keys(files).length;
-  const G = useG(), T = useTokens();
+  const [activeSlot, setActiveSlot] = useState(null); const inputRefs = useRef({}); const uploadedCount = Object.keys(files).length; const G = useG(); const T = useTokens();
   return (
     <div style={{ ...G.card, borderRadius: 20, padding: "clamp(16px,4vw,28px)", marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -864,41 +861,93 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
         <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 18, color: uploadedCount > 0 ? T.accent : T.textFaint }}>{uploadedCount}<span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'JetBrains Mono'" }}>/{SLOTS.length}</span></span>
       </div>
       <div style={{ height: 3, background: T.ghost, borderRadius: 2, overflow: "hidden", marginBottom: 16 }}>
-        <div style={{ height: "100%", width: `${(uploadedCount / SLOTS.length) * 100}%`, background: `linear-gradient(90deg,${T.accentMid},${T.accent})`, borderRadius: 2, boxShadow: `0 0 12px ${T.accent}80`, transition: "width .6s cubic-bezier(.16,1,.3,1)" }} />
+        <div style={{ height: "100%", width: `${(uploadedCount / SLOTS.length) * 100}%`, background: `linear-gradient(90deg,${T.accentMid},${T.accent})`, borderRadius: 2, boxShadow: `0 0 12px ${T.accent}77`, transition: "width 0.6s cubic-bezier(0.16,1,0.3,1)" }} />
       </div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderRadius: 10, background: `${T.accent}0d`, border: `1px solid ${T.accent}1e`, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderRadius: 10, background: `${T.accent}0c`, border: `1px solid ${T.accent}1c`, marginBottom: 16 }}>
         <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>💡</span>
         <p style={{ fontSize: 10, color: T.textMuted, margin: 0, lineHeight: 1.65 }}><span style={{ color: `${T.accent}b3`, fontWeight: 600 }}>Tip:</span> Use flash, place a coin in the tread groove to help the AI calibrate depth.</p>
       </div>
       <div className="slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px,100%),1fr))", gap: 10 }}>
-        {SLOTS.map(slot => { const file = files[slot.id], isDragging = activeSlot === slot.id; return <SlotTile key={slot.id} slot={slot} file={file} isDragging={isDragging} inputRef={el => inputRefs.current[slot.id] = el} onDragOver={e => { e.preventDefault(); setActiveSlot(slot.id); }} onDragLeave={() => setActiveSlot(null)} onDrop={e => { e.preventDefault(); setActiveSlot(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith("image/")) onUpload(slot.id, f); }} onClick={() => !file && inputRefs.current[slot.id]?.click()} onRemove={() => onRemove(slot.id)} onFileChange={e => { if (e.target.files[0]) { haptic("light"); onUpload(slot.id, e.target.files[0]); } }} />; })}
+        {SLOTS.map(slot => { const file = files[slot.id]; const isDragging = activeSlot === slot.id; return (<SlotTile key={slot.id} slot={slot} file={file} isDragging={isDragging} inputRef={el => inputRefs.current[slot.id] = el} onDragOver={e => { e.preventDefault(); setActiveSlot(slot.id); }} onDragLeave={() => setActiveSlot(null)} onDrop={e => { e.preventDefault(); setActiveSlot(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith("image/")) onUpload(slot.id, f); }} onRemove={() => onRemove(slot.id)} onFileChange={e => { if (e.target.files[0]) onUpload(slot.id, e.target.files[0]); }} />); })}
       </div>
     </div>
   );
 }
 
-function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, onDrop, onClick, onRemove, onFileChange }) {
+function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, onDrop, onRemove, onFileChange }) {
   const [preview, setPreview] = useState(null);
+  const [justAdded, setJustAdded] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const T = useTokens(), ripple = useRipple();
-  useEffect(() => { if (!file) { setPreview(null); return; } const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
+  const T = useTokens();
+  const { ref: rippleRef, trigger: triggerRipple } = useRipple();
+  const pressRef = usePressEffect({ scale: file ? 1 : 0.96, hapticType: file ? "light" : "medium" });
+  const ownInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    let url;
+    try { url = URL.createObjectURL(file); } catch(_) { return; }
+    setPreview(url);
+    setJustAdded(true);
+    haptic("success");
+    const t = setTimeout(() => setJustAdded(false), 500);
+    return () => { URL.revokeObjectURL(url); clearTimeout(t); };
+  }, [file]);
+
+  const setTileRef = (el) => {
+    rippleRef.current = el;
+    if (pressRef && typeof pressRef === "object") pressRef.current = el;
+  };
+
+  const setInputRef = (el) => {
+    ownInputRef.current = el;
+    if (typeof inputRef === "function") inputRef(el);
+    else if (inputRef && typeof inputRef === "object") inputRef.current = el;
+  };
+
+  const handleTileClick = (e) => {
+    if (file) return;
+    triggerRipple(e);
+    ownInputRef.current?.click();
+  };
+
   return (
-    <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{ position: "relative", height: "clamp(90px,15vh,130px)", borderRadius: 12, overflow: "hidden", cursor: file ? "default" : "pointer", transition: "transform .1s, border-color .2s", WebkitTapHighlightColor: "transparent", ...(isDragging ? { background: `${T.accent}14`, border: `1.5px solid ${T.accent}99`, boxShadow: `0 0 28px ${T.accent}24` } : file ? { background: "rgba(0,0,0,0.45)", border: `1px solid ${T.border}` } : { background: T.ghost, border: `1px dashed ${T.border}` }) }}
-      onClick={e => { if (!file) { ripple(e); onClick(); } }}>
+    <div
+      ref={setTileRef}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={justAdded ? "slot-added" : ""}
+      onClick={handleTileClick}
+      style={{
+        position: "relative", height: "clamp(90px,15vh,130px)", borderRadius: 12,
+        overflow: "hidden", cursor: file ? "default" : "pointer",
+        transition: "border-color 0.2s, box-shadow 0.2s",
+        WebkitTapHighlightColor: "transparent",
+        ...(isDragging
+          ? { background: `${T.accent}14`, border: `1.5px solid ${T.accent}99`, boxShadow: `0 0 28px ${T.accent}22` }
+          : file
+          ? { background: "rgba(0,0,0,0.45)", border: `1px solid ${T.border}` }
+          : { background: T.ghost, border: `1px dashed ${T.border}` })
+      }}
+    >
       {preview ? (
         <>
-          <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          <div style={{ position: "absolute", inset: 0, background: hovered ? "rgba(0,0,0,0.6)" : "transparent", transition: "background .2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {hovered && <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ background: "rgba(239,68,68,0.9)", border: "none", color: "white", fontSize: 10, letterSpacing: "0.1em", padding: "6px 14px", borderRadius: 6, cursor: "pointer" }}>✕ REMOVE</button>}
+          <img src={preview} alt={slot.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <div style={{ position: "absolute", inset: 0, background: hovered ? "rgba(0,0,0,0.55)" : "transparent", transition: "background 0.2s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {hovered && <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ background: "rgba(239,68,68,0.9)", border: "none", color: "white", fontSize: 10, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 7, cursor: "pointer" }}>✕ REMOVE</button>}
           </div>
-          <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 11 }}>✕</button>
+          <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.75)", fontSize: 11, WebkitTapHighlightColor: "transparent" }}>✕</button>
           <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(16,185,129,0.88)", backdropFilter: "blur(8px)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "white", letterSpacing: "0.08em" }}>✓</div>
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 5px", background: "linear-gradient(transparent,rgba(0,0,0,0.7))" }}><p style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", margin: 0, letterSpacing: "0.08em", textAlign: "center" }}>{slot.label}</p></div>
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 5px", background: "linear-gradient(transparent,rgba(0,0,0,0.68))" }}>
+            <p style={{ fontSize: 9, color: "rgba(255,255,255,0.55)", margin: 0, letterSpacing: "0.08em", textAlign: "center" }}>{slot.label}</p>
+          </div>
         </>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 7, padding: 8 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", background: isDragging ? `${T.accent}1e` : T.ghost, flexShrink: 0 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", background: isDragging ? `${T.accent}1e` : T.ghost, flexShrink: 0, transition: "all 0.2s" }}>
             <span style={{ color: isDragging ? T.accent : T.textMuted, fontSize: 15, lineHeight: 1 }}>{isDragging ? "↓" : slot.icon}</span>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -907,7 +956,7 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onFileChange} />
+      <input ref={setInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
 }
