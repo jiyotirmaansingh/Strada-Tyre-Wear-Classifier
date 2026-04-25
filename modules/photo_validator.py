@@ -52,40 +52,58 @@ def is_tyre_image(image: Image.Image) -> tuple[bool, float]:
 
 
 class PhotoValidator:
-    def validate(self, image: Image.Image) -> dict:
+    def validate(self, image):
         import cv2
         import numpy as np
-        
-        img_array = np.array(image)
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        
+
+        img = np.array(image)
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        h, w = gray.shape
+
         errors = []
         warnings = []
 
-        # ── Basic quality checks ──────────────────────────────────────────────
+        # Blur
         lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
         if lap_var < 35:
             errors.append("Image is too blurry. Retake with better focus.")
 
+        # Brightness
         brightness = gray.mean()
         if brightness < 20:
             errors.append("Image is too dark. Use flash or better lighting.")
         elif brightness > 240:
-            errors.append("Image is overexposed. Reduce flash or glare.")
+            errors.append("Image is overexposed. Reduce glare.")
 
-        # ── Tyre content check via CLIP ───────────────────────────────────────
-        is_tyre, confidence = is_tyre_image(image)
-        if not is_tyre:
-            errors.append(
-                f"This doesn't look like a tyre image (confidence: {confidence:.0%}). "
-                "Please upload a clear photo of a tyre — tread, sidewall, or profile view."
-            )
+        # Tyre check: tyres have high edge density AND significant dark regions
+        # A poster/document is bright+text-heavy; a tyre is dark+curved edges
+        dark_ratio = np.sum(gray < 90) / gray.size
+        edges = cv2.Canny(gray, 50, 150)
+        edge_density = edges.mean()
 
-        # ── Soft warnings ─────────────────────────────────────────────────────
+        # Colorfulness check — a promotional poster is very colorful
+        # Convert to HSV and check saturation
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        sat_mean = hsv[:,:,1].mean()
+
+        # Reject if: very colorful + bright + low dark regions (poster-like)
+        is_poster_like = sat_mean > 80 and brightness > 140 and dark_ratio < 0.12
+        # Reject if: basically no dark content and no real edges (blank/screenshot)  
+        is_blank_like = dark_ratio < 0.05 and edge_density < 3
+
+        if is_poster_like:
+            errors.append("This doesn't look like a tyre photo. Please upload a tyre image — tread, sidewall, or profile view.")
+        elif is_blank_like:
+            errors.append("Image appears to be a screenshot or document, not a tyre photo.")
+
         if lap_var < 80:
             warnings.append("Image appears slightly blurry. Results may be less accurate.")
         if brightness < 60:
-            warnings.append("Image is quite dark. Consider using flash for better results.")
+            warnings.append("Low lighting detected. Use flash for better accuracy.")
+
+        # Tyre appears wet
+        if lap_var > 80 and dark_ratio > 0.3 and edge_density < 8:
+            warnings.append("Tyre appears wet. Wet tyres may show deeper grooves than actual. Results may be less accurate.")
 
         return {
             "valid": len(errors) == 0,
