@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 
 // ─── THEME CONTEXT ────────────────────────────────────────────────────────────
-const ThemeContext = createContext({ theme: "dark", toggleTheme: () => {} });
+const ThemeContext = createContext({ theme: "light", toggleTheme: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
 // ─── SLOTS ────────────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const SVG_C = { green: "#10b981", yellow: "#f59e0b", orange: "#f97316", red: "#e
 
 // ─── THEME TOKENS ─────────────────────────────────────────────────────────────
 const DARK = {
-  bg: "#080808", surface: "rgba(16,16,16,0.92)", panel: "rgba(12,12,12,0.75)",
+  bg: "#080808", surface: "rgba(22,22,22,0.98)", panel: "rgba(18,18,18,0.96)",
   ghost: "rgba(255,255,255,0.025)", text: "#ffffff", textSub: "rgba(255,255,255,0.38)",
   textMuted: "rgba(255,255,255,0.2)", textFaint: "rgba(255,255,255,0.12)",
   border: "rgba(255,255,255,0.07)", borderFaint: "rgba(255,255,255,0.04)",
@@ -32,12 +33,12 @@ const DARK = {
   cardShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)",
   panelBorder: "rgba(255,255,255,0.07)",
   panelShadow: "0 0 0 0.5px rgba(255,255,255,0.04) inset, 0 20px 60px rgba(0,0,0,0.5)",
-  gridLine: "rgba(255,255,255,0.011)", noiseOpacity: 0.025,
-  orbColors: ["rgba(249,115,22,0.09)", "rgba(234,88,12,0.07)", "rgba(251,146,60,0.05)", "rgba(249,115,22,0.04)"],
+  gridLine: "rgba(255,255,255,0.011)", noiseOpacity: 0,
+  orbBg: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(249,115,22,0.09) 0%, transparent 70%)",
 };
 
 const LIGHT = {
-  bg: "#faf7f4", surface: "rgba(255,252,249,0.97)", panel: "rgba(255,252,249,0.88)",
+  bg: "#faf7f4", surface: "rgba(255,252,249,0.99)", panel: "rgba(255,252,249,0.97)",
   ghost: "rgba(0,0,0,0.03)", text: "#1a1008", textSub: "rgba(26,16,8,0.52)",
   textMuted: "rgba(26,16,8,0.38)", textFaint: "rgba(26,16,8,0.2)",
   border: "rgba(0,0,0,0.07)", borderFaint: "rgba(0,0,0,0.04)",
@@ -46,8 +47,8 @@ const LIGHT = {
   cardShadow: "0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9)",
   panelBorder: "rgba(0,0,0,0.08)",
   panelShadow: "0 0 0 0.5px rgba(0,0,0,0.04) inset, 0 8px 40px rgba(0,0,0,0.08)",
-  gridLine: "rgba(0,0,0,0.018)", noiseOpacity: 0.018,
-  orbColors: ["rgba(249,115,22,0.07)", "rgba(234,88,12,0.05)", "rgba(251,146,60,0.04)", "rgba(249,115,22,0.03)"],
+  gridLine: "rgba(0,0,0,0.018)", noiseOpacity: 0,
+  orbBg: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(249,115,22,0.07) 0%, transparent 70%)",
 };
 
 function useTokens() { const { theme } = useTheme(); return theme === "dark" ? DARK : LIGHT; }
@@ -55,8 +56,9 @@ function useTokens() { const { theme } = useTheme(); return theme === "dark" ? D
 function useG() {
   const T = useTokens();
   return {
-    panel: { background: T.panel, backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)", border: `1px solid ${T.panelBorder}`, boxShadow: T.panelShadow },
-    card: { background: T.surface, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${T.cardBorder}`, boxShadow: T.cardShadow },
+    // No backdropFilter — replaced with opaque backgrounds for GPU savings
+    panel: { background: T.panel, border: `1px solid ${T.panelBorder}`, boxShadow: T.panelShadow },
+    card: { background: T.surface, border: `1px solid ${T.cardBorder}`, boxShadow: T.cardShadow },
     ghost: { background: T.ghost, border: `1px solid ${T.border}` },
   };
 }
@@ -70,7 +72,7 @@ function haptic(type = "light") {
   } catch (_) {}
 }
 
-// ─── LEAFLET LOADER (singleton promise — only loads once) ─────────────────────
+// ─── LEAFLET LOADER ───────────────────────────────────────────────────────────
 let leafletLoadPromise = null;
 function loadLeaflet() {
   if (window.L) return Promise.resolve(window.L);
@@ -83,7 +85,6 @@ function loadLeaflet() {
       document.head.appendChild(link);
     }
     if (document.getElementById("leaflet-js")) {
-      // Script tag exists but may not have fired onload yet — poll
       const poll = setInterval(() => { if (window.L) { clearInterval(poll); resolve(window.L); } }, 50);
       setTimeout(() => { clearInterval(poll); reject(new Error("Leaflet load timeout")); }, 10000);
       return;
@@ -98,7 +99,7 @@ function loadLeaflet() {
   return leafletLoadPromise;
 }
 
-// ─── OVERPASS FETCH WITH RETRY + FALLBACK MIRROR ─────────────────────────────
+// ─── OVERPASS FETCH ───────────────────────────────────────────────────────────
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
@@ -110,11 +111,7 @@ async function fetchOverpass(query, attempt = 0) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      body: "data=" + encodeURIComponent(query),
-      signal: controller.signal,
-    });
+    const res = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(query), signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -141,107 +138,61 @@ html{scroll-behavior:smooth}
 body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains Mono',monospace}
 .safe-bottom{padding-bottom:env(safe-area-inset-bottom)}
 
-#strada-cursor{position:fixed;top:0;left:0;pointer-events:none;z-index:9999;width:12px;height:12px;border-radius:50%;background:#f97316;mix-blend-mode:difference;transform:translate(-50%,-50%);will-change:transform;transition:width .2s,height .2s}
-#strada-cursor-ring{position:fixed;top:0;left:0;pointer-events:none;z-index:9998;width:36px;height:36px;border-radius:50%;border:1px solid rgba(249,115,22,0.45);transform:translate(-50%,-50%);will-change:transform;transition:width .3s,height .3s,border-color .2s}
-@media(max-width:768px){#strada-cursor,#strada-cursor-ring{display:none}}
+/* ── ANIMATIONS ── */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.9)}}
+@keyframes radarPing{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2.5);opacity:0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes cardReveal{from{opacity:0;transform:translateY(28px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes statusPop{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes rippleOut{0%{transform:scale(0);opacity:.35}100%{transform:scale(4);opacity:0}}
+@keyframes touchPress{0%{transform:scale(1)}50%{transform:scale(0.965)}100%{transform:scale(1)}}
 
-/* ── DESKTOP ANIMATIONS ── */
-@media(min-width:769px){
-  @keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.9)}}
-  @keyframes radarPing{0%{transform:scale(0.5);opacity:1}100%{transform:scale(2.5);opacity:0}}
-  @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
-  @keyframes orbFloat1{0%,100%{transform:translate(-50%,-50%) scale(1)}33%{transform:translate(-42%,-58%) scale(1.15)}66%{transform:translate(-58%,-42%) scale(.9)}}
-  @keyframes orbFloat2{0%,100%{transform:translate(-50%,-50%) scale(1.1)}50%{transform:translate(-55%,-45%) scale(.85)}}
-  @keyframes orbFloat3{0%,100%{transform:translate(-50%,-50%) scale(.9)}50%{transform:translate(-45%,-52%) scale(1.1)}}
-  @keyframes glowPulse{0%,100%{box-shadow:0 0 24px rgba(249,115,22,.3)}50%{box-shadow:0 0 60px rgba(249,115,22,.55),0 0 100px rgba(249,115,22,.15)}}
-  @keyframes borderFlow{0%,100%{border-color:rgba(249,115,22,.15)}50%{border-color:rgba(249,115,22,.5)}}
-  @keyframes cardReveal{from{opacity:0;transform:translateY(28px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-  @keyframes statusPop{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
-  @keyframes dataStream{0%{opacity:0;transform:translateY(-4px)}50%{opacity:1}100%{opacity:0;transform:translateY(4px)}}
-  @keyframes tyreFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-12px)}}
-  @keyframes rippleOut{0%{transform:scale(0);opacity:.35}100%{transform:scale(4);opacity:0}}
+/* Static backgrounds replace animated orbs/glows */
+.strada-orb-bg{position:fixed;inset:0;pointer-events:none;z-index:0}
 
-  .strada-reveal{opacity:0;transform:translateY(30px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
-  .strada-reveal.visible{opacity:1;transform:translateY(0)}
-  .shimmer-text{background:linear-gradient(90deg,#f97316 0%,#fb923c 20%,#fff 50%,#fb923c 80%,#f97316 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
-  .shimmer-text-light{background:linear-gradient(90deg,#ea6500 0%,#f97316 20%,#1a1008 50%,#f97316 80%,#ea6500 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
-  .lift-card{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s,border-color .3s}
-  .lift-card:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 28px 64px rgba(0,0,0,.25),0 0 0 1px rgba(249,115,22,.18)!important}
-  .mag-btn{position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s}
-  .mag-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.08),transparent);opacity:0;transition:opacity .3s}
-  .mag-btn:hover::before{opacity:1}
-  .mag-btn:active{transform:scale(.97)!important}
-  .card-anim{animation:cardReveal .55s cubic-bezier(.16,1,.3,1) both}
-  .status-anim{animation:statusPop .35s cubic-bezier(.16,1,.3,1) both}
-  .hero-radar-wrap{animation:tyreFloat 4s ease-in-out infinite}
-  .glow-pulse-anim{animation:glowPulse 3s ease-in-out infinite}
-  .border-flow-anim{animation:borderFlow 4s ease-in-out infinite}
-  .dot-pulse{animation:pulse 2.2s ease-in-out infinite}
-  .hero-badge{animation:fadeIn 0.8s ease forwards;opacity:0;animation-delay:0.05s}
-  .hero-title-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .18s both}
-  .hero-desc-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .3s both}
-  .hero-buttons-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .42s both}
-  .hero-stats-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .55s both}
-  .hero-radar-outer{animation:fadeIn 1.6s ease .75s both}
-  .data-stream{animation:dataStream .6s ease var(--delay,0s) both}
-  .report-dot-pulse{animation:pulse 2s infinite}
-  .hero-btn-glow{animation:glowPulse 3.5s ease-in-out infinite}
+.strada-reveal{opacity:0;transform:translateY(30px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+.strada-reveal.visible{opacity:1;transform:translateY(0)}
+
+/* Shimmer — only runs while in viewport via visibility */
+@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+.shimmer-text{background:linear-gradient(90deg,#f97316 0%,#fb923c 20%,#fff 50%,#fb923c 80%,#f97316 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
+.shimmer-text-light{background:linear-gradient(90deg,#ea6500 0%,#f97316 20%,#1a1008 50%,#f97316 80%,#ea6500 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
+
+/* Pause shimmer when tab hidden */
+@media (prefers-reduced-motion: reduce){
+  .shimmer-text,.shimmer-text-light{animation:none}
 }
 
-/* ── MOBILE ANIMATIONS (GPU-friendly) ── */
-@media(max-width:768px){
-  @keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  @keyframes cardReveal{from{opacity:0}to{opacity:1}}
-  @keyframes statusPop{from{opacity:0}to{opacity:1}}
-  @keyframes rippleOut{0%{transform:scale(0);opacity:.25}100%{transform:scale(3.5);opacity:0}}
-  @keyframes touchPress{0%{transform:scale(1)}50%{transform:scale(0.965)}100%{transform:scale(1)}}
-  @keyframes swipeHint{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.lift-card{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s,border-color .3s}
+.lift-card:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 28px 64px rgba(0,0,0,.25),0 0 0 1px rgba(249,115,22,.18)!important}
+.mag-btn{position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s}
+.mag-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.08),transparent);opacity:0;transition:opacity .3s}
+.mag-btn:hover::before{opacity:1}
+.mag-btn:active{transform:scale(.97)!important}
+.card-anim{animation:cardReveal .55s cubic-bezier(.16,1,.3,1) both}
+.status-anim{animation:statusPop .35s cubic-bezier(.16,1,.3,1) both}
+.dot-pulse{animation:pulse 2.2s ease-in-out infinite}
+.hero-badge{animation:fadeIn 0.8s ease forwards;opacity:0;animation-delay:0.05s}
+.hero-title-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .18s both}
+.hero-desc-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .3s both}
+.hero-buttons-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .42s both}
+.hero-stats-wrap{animation:fadeUp 1s cubic-bezier(.16,1,.3,1) .55s both}
+.hero-radar-outer{animation:fadeIn 1.6s ease .75s both}
+.report-dot-pulse{animation:pulse 2s infinite}
 
+/* Replaced infinite box-shadow/border animations with static values */
+.btn-primary-shadow{box-shadow:0 0 32px rgba(249,115,22,0.4),0 4px 24px rgba(0,0,0,0.25)}
+
+@media(max-width:768px){
+  *{-webkit-tap-highlight-color:transparent}
   .strada-reveal{opacity:0;transition:opacity .5s ease}
   .strada-reveal.visible{opacity:1;transform:none}
-  .shimmer-text{background:linear-gradient(90deg,#f97316,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-  .shimmer-text-light{background:linear-gradient(90deg,#ea6500,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .shimmer-text,.shimmer-text-light{animation:none;background:linear-gradient(90deg,#f97316,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
   .lift-card{transition:none}
-  .mag-btn{position:relative;overflow:hidden;transition:transform .12s cubic-bezier(.16,1,.3,1),opacity .12s}
+  .mag-btn{transition:transform .12s cubic-bezier(.16,1,.3,1),opacity .12s}
   .mag-btn:active{transform:scale(0.96)!important;opacity:.92}
-  .hero-radar-wrap,.glow-pulse-anim,.border-flow-anim,.hero-btn-glow{animation:none}
-  .dot-pulse{animation:pulse 2.5s ease-in-out infinite}
-  .hero-badge{animation:fadeIn 0.4s ease forwards}
-  .hero-title-wrap{animation:fadeIn 0.5s ease .1s both}
-  .hero-desc-wrap{animation:fadeIn 0.5s ease .2s both}
-  .hero-buttons-wrap{animation:fadeIn 0.5s ease .3s both}
-  .hero-stats-wrap{animation:fadeIn 0.5s ease .4s both}
-  .hero-radar-outer{animation:fadeIn 0.6s ease .5s both}
-  .data-stream{animation:none;opacity:1}
-  .report-dot-pulse{animation:pulse 2.5s ease-in-out infinite}
-  .card-anim{animation:cardReveal .3s ease both}
-  .status-anim{animation:statusPop .2s ease both}
-
-  /* iOS-style tap highlight suppression — we handle it ourselves */
-  *{-webkit-tap-highlight-color:transparent}
-
-  /* Touch press state for interactive cards */
-  .touch-card{transition:transform .1s cubic-bezier(.16,1,.3,1),box-shadow .1s}
-  .touch-card:active{transform:scale(0.975)!important;box-shadow:0 2px 8px rgba(0,0,0,0.15)!important}
-
-  /* Spring-back for primary buttons — iOS feel */
-  .touch-btn{transition:transform .12s cubic-bezier(.16,1,.3,1)}
-  .touch-btn:active{transform:scale(0.94)!important}
-}
-
-/* ── RIPPLE ── */
-.ripple{position:absolute;border-radius:50%;background:rgba(249,115,22,0.28);pointer-events:none;animation:rippleOut 0.55s ease-out forwards}
-
-.gradcam-img{mix-blend-mode:multiply;filter:saturate(1.6) contrast(1.1)}
-
-/* ── RESPONSIVE LAYOUT ── */
-@media(max-width:768px){
-  button,a,[role=button]{min-height:44px;min-width:44px}
   .hero-title{font-size:clamp(48px,14vw,92px)!important;letter-spacing:-0.05em!important}
   .hero-section{padding:80px 16px 48px!important}
   .hero-buttons{flex-direction:column!important;align-items:stretch!important;gap:10px!important}
@@ -249,16 +200,30 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
   .hero-stats{gap:0!important;margin-top:40px!important}
   .hero-stats>div{padding:0 clamp(10px,3vw,20px)!important}
   .hero-radar{width:min(260px,78vw)!important;height:min(260px,78vw)!important;margin-top:40px!important}
+  .touch-card{transition:transform .1s cubic-bezier(.16,1,.3,1),box-shadow .1s}
+  .touch-card:active{transform:scale(0.975)!important;box-shadow:0 2px 8px rgba(0,0,0,0.15)!important}
+  .touch-btn{transition:transform .12s cubic-bezier(.16,1,.3,1)}
+  .touch-btn:active{transform:scale(0.94)!important}
+  button,a,[role=button]{min-height:44px;min-width:44px}
+  .hero-badge{padding:6px 12px!important;font-size:8px!important}
+  .hero-desc{font-size:12px!important;padding:0 10px!important}
+  .card-anim{animation:cardReveal .3s ease both}
+  .status-anim{animation:statusPop .2s ease both}
+  .dot-pulse{animation:pulse 2.5s ease-in-out infinite}
+  .hero-title-wrap,.hero-desc-wrap,.hero-buttons-wrap,.hero-stats-wrap{animation:fadeIn 0.5s ease .1s both}
+  .hero-radar-outer{animation:fadeIn 0.6s ease .5s both}
 }
 @media(max-width:480px){
   .hero-title{font-size:clamp(40px,13.5vw,78px)!important}
-  .hero-badge{padding:6px 12px!important;font-size:8px!important}
-  .hero-desc{font-size:12px!important;padding:0 10px!important}
 }
+
+/* ── RIPPLE ── */
+.ripple{position:absolute;border-radius:50%;background:rgba(249,115,22,0.28);pointer-events:none;animation:rippleOut 0.55s ease-out forwards}
+
+.gradcam-img{mix-blend-mode:multiply;filter:saturate(1.6) contrast(1.1)}
 
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
 @media(max-width:640px){.grid3{grid-template-columns:1fr!important}}
-
 .pipeline-steps{display:flex;gap:0;position:relative}
 @media(max-width:600px){
   .pipeline-steps{flex-direction:column!important;align-items:stretch!important;gap:12px!important}
@@ -266,7 +231,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
   .pipeline-step{flex-direction:row!important;gap:16px!important;align-items:center!important;text-align:left!important;padding:0!important}
   .pipeline-step-text{text-align:left!important}
 }
-
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
 @media(max-width:480px){.grid2{grid-template-columns:1fr!important;gap:12px!important}}
 @media(max-width:540px){.slot-grid{grid-template-columns:1fr 1fr!important}}
@@ -278,66 +242,107 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
   .report-actions button{flex:1!important}
 }
 
-body.light-mode{background:#faf7f4;color:#1a1008;cursor:auto}
-body.dark-mode{background:#080808;color:#fff;cursor:none}
-@media(max-width:768px){body.dark-mode{cursor:auto}}
+body.light-mode{background:#faf7f4;color:#1a1008}
+body.dark-mode{background:#080808;color:#fff}
 
-/* ══ PRINT STYLES — this is what actually prints ══ */
+/* ═══════════════════════════════════════════════
+   PRINT STYLES — Premium workshop-ready report
+═══════════════════════════════════════════════ */
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  #strada-cursor,#strada-cursor-ring,.no-print,#strada-report-overlay .no-print{display:none!important}
-  body{background:#fff!important;color:#111!important;overflow:visible!important;font-family:sans-serif!important}
 
-  /* Hide the screen UI completely, show only the print template */
-  body > *:not(#print-root){display:none!important}
-  #print-root{display:block!important;position:static!important;visibility:visible!important}
+  /* Hide entire screen UI, show only portal */
+  body > *{display:none!important}
+  #strada-print-portal{display:block!important;visibility:visible!important;position:static!important}
 
-  /* Page setup */
-  @page{size:A4;margin:18mm 14mm}
+  @page{
+    size:A4;
+    margin:15mm 14mm 20mm;
+  }
+  @page:first{margin-top:15mm}
 
-  .print-page{page-break-after:always;padding:0}
+  /* Reset body for print */
+  body{background:#fff!important;color:#111!important;overflow:visible!important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif!important}
+
+  /* ── Page break control ── */
+  .print-page{page-break-after:always}
   .print-page:last-child{page-break-after:avoid}
+  .print-no-break{page-break-inside:avoid;break-inside:avoid}
+  .print-break-before{page-break-before:always;break-before:always}
 
-  /* Typography resets for print */
-  .print-h1{font-family:sans-serif;font-weight:800;font-size:22pt;letter-spacing:-0.02em;color:#111;margin:0}
-  .print-h2{font-family:sans-serif;font-weight:700;font-size:13pt;color:#111;margin:0 0 10px}
-  .print-h3{font-family:sans-serif;font-weight:600;font-size:10pt;color:#444;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.06em}
-  .print-body{font-family:sans-serif;font-size:9pt;color:#333;line-height:1.65}
-  .print-label{font-family:sans-serif;font-size:7pt;color:#888;text-transform:uppercase;letter-spacing:0.1em}
-  .print-value{font-family:sans-serif;font-weight:700;font-size:18pt;line-height:1.1}
-  .print-small{font-family:sans-serif;font-size:8pt;color:#666}
+  /* ── Print Typography ── */
+  .pt-h1{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:26pt;letter-spacing:-0.04em;color:#111!important;margin:0}
+  .pt-h2{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:800;font-size:14pt;color:#111!important;margin:0 0 8pt}
+  .pt-h3{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:9pt;color:#444!important;margin:0 0 4pt;text-transform:uppercase;letter-spacing:0.08em}
+  .pt-body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:9pt;color:#333!important;line-height:1.65}
+  .pt-label{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:7pt;color:#999!important;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:3pt}
+  .pt-value{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:22pt;line-height:1.1;color:#111!important}
+  .pt-small{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:8pt;color:#777!important}
+  .pt-mono{font-family:'Courier New',Courier,monospace;font-size:8pt;color:#666!important}
 
-  .print-divider{border:none;border-top:0.75pt solid #e5e7eb;margin:10px 0}
+  /* ── Dividers ── */
+  .pt-rule{border:none;border-top:0.75pt solid #ddd;margin:10pt 0}
+  .pt-rule-heavy{border:none;border-top:2pt solid #111;margin:10pt 0}
 
-  /* Grid helpers */
-  .print-row{display:flex;gap:12px;margin-bottom:12px}
-  .print-col{flex:1;border:0.75pt solid #e5e7eb;border-radius:5pt;padding:10px 12px}
-  .print-col-wide{flex:2;border:0.75pt solid #e5e7eb;border-radius:5pt;padding:10px 12px}
+  /* ── Color utilities ── */
+  .pt-green{color:#059669!important}
+  .pt-yellow{color:#d97706!important}
+  .pt-red{color:#dc2626!important}
+  .pt-orange{color:#ea580c!important}
+  .pt-muted{color:#888!important}
 
-  /* Urgency badge */
-  .print-badge-high{background:#fef2f2!important;border:1pt solid #fca5a5!important;color:#dc2626!important;padding:8px 12px;border-radius:5pt;margin-bottom:12px}
-  .print-badge-medium{background:#fffbeb!important;border:1pt solid #fcd34d!important;color:#d97706!important;padding:8px 12px;border-radius:5pt;margin-bottom:12px}
-  .print-badge-low{background:#f0fdf4!important;border:1pt solid #6ee7b7!important;color:#059669!important;padding:8px 12px;border-radius:5pt;margin-bottom:12px}
+  /* ── Badge (urgency) ── */
+  .pt-badge{display:flex;align-items:center;gap:8pt;padding:8pt 12pt;border-radius:4pt;margin-bottom:12pt}
+  .pt-badge-high{background:#fff0f0!important;border:1.5pt solid #fca5a5!important}
+  .pt-badge-medium{background:#fffbeb!important;border:1.5pt solid #fde68a!important}
+  .pt-badge-low{background:#f0fdf4!important;border:1.5pt solid #6ee7b7!important}
 
-  /* Tread bar */
-  .print-bar-track{height:5pt;background:#f3f4f6!important;border-radius:3pt;overflow:hidden;margin-top:5px}
-  .print-bar-fill{height:100%;border-radius:3pt}
+  /* ── KPI grid ── */
+  .pt-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:10pt}
+  .pt-kpi{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
+  .pt-kpi-2{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
+  .pt-2col{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:10pt}
+  .pt-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:6pt;margin-bottom:10pt}
 
-  .print-green-text{color:#059669!important}
-  .print-yellow-text{color:#d97706!important}
-  .print-red-text{color:#dc2626!important}
-  .print-orange-text{color:#ea580c!important}
+  /* ── Progress bars ── */
+  .pt-bar-track{height:5pt;background:#f3f4f6!important;border-radius:3pt;overflow:hidden;margin-top:4pt}
+  .pt-bar-fill-green{height:100%;background:#059669!important;border-radius:3pt}
+  .pt-bar-fill-yellow{height:100%;background:#d97706!important;border-radius:3pt}
+  .pt-bar-fill-red{height:100%;background:#dc2626!important;border-radius:3pt}
 
-  /* Score breakdown table */
-  .print-score-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5pt solid #f3f4f6}
-  .print-score-row:last-child{border-bottom:none}
+  /* ── Score breakdown ── */
+  .pt-score-table{width:100%;border-collapse:collapse;margin-bottom:10pt}
+  .pt-score-row{display:grid;grid-template-columns:130pt 1fr 40pt 60pt;align-items:center;gap:8pt;padding:5pt 0;border-bottom:0.5pt solid #f0f0f0!important}
+  .pt-score-row:last-child{border-bottom:none!important}
 
-  /* Footer */
-  .print-footer{position:fixed;bottom:0;left:0;right:0;padding:6pt 14mm;border-top:0.5pt solid #e5e7eb;display:flex;justify-content:space-between;font-family:sans-serif;font-size:7pt;color:#aaa}
+  /* ── Workshop checklist ── */
+  .pt-checklist{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;border-radius:0 4pt 4pt 0;padding:10pt 14pt;margin-bottom:10pt;background:#fff!important}
+
+  /* ── Images grid ── */
+  .pt-images-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6pt;margin-bottom:10pt}
+  .pt-img-cell{text-align:center}
+  .pt-img-cell img{width:100%;height:50pt;object-fit:cover;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
+  .pt-img-label{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:6pt;color:#aaa!important;text-transform:uppercase;letter-spacing:0.06em;margin-top:3pt}
+
+  /* ── Recommendation box ── */
+  .pt-reco{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;padding:10pt 14pt;border-radius:0 4pt 4pt 0;margin-bottom:10pt;background:#fff!important}
+
+  /* ── Warning box ── */
+  .pt-warn{background:#fffbeb!important;border:0.75pt solid #fcd34d!important;border-radius:4pt;padding:8pt 12pt;margin-bottom:10pt}
+
+  /* ── Print footer ── */
+  .pt-footer{position:fixed;bottom:0;left:0;right:0;padding:5pt 14mm;border-top:0.5pt solid #ddd!important;display:flex;justify-content:space-between;align-items:center;background:#fff!important}
+  .pt-footer span{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:7pt;color:#aaa!important}
+
+  /* ── Gradcam image ── */
+  .pt-gradcam{width:100%;max-height:120pt;object-fit:contain;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
+
+  /* ── Gauge circle (SVG-based) ── */
+  .pt-gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4pt}
 }
 `;
 
-// ─── RIPPLE EFFECT HOOK ───────────────────────────────────────────────────────
+// ─── RIPPLE ───────────────────────────────────────────────────────────────────
 function useRipple() {
   return useCallback((e) => {
     const el = e.currentTarget;
@@ -353,105 +358,130 @@ function useRipple() {
   }, []);
 }
 
-// ─── CURSOR ───────────────────────────────────────────────────────────────────
-function Cursor() {
-  const c = useRef(null), r = useRef(null), pos = useRef({ x: 0, y: 0 }), raf = useRef(null);
-  useEffect(() => {
-    const el = c.current, rl = r.current;
-    if (!el || !rl) return;
-    const tick = () => { const { x, y } = pos.current; el.style.transform = `translate(calc(${x}px - 50%),calc(${y}px - 50%))`; rl.style.transform = `translate(calc(${x}px - 50%),calc(${y}px - 50%))`; raf.current = null; };
-    const move = e => { pos.current = { x: e.clientX, y: e.clientY }; if (!raf.current) raf.current = requestAnimationFrame(tick); };
-    const over = e => { if (e.target.closest("button,a,[role=button],.mag-btn")) { el.style.width = "20px"; el.style.height = "20px"; rl.style.width = "56px"; rl.style.height = "56px"; rl.style.borderColor = "rgba(249,115,22,0.8)"; } };
-    const out = () => { el.style.width = "12px"; el.style.height = "12px"; rl.style.width = "36px"; rl.style.height = "36px"; rl.style.borderColor = "rgba(249,115,22,0.45)"; };
-    window.addEventListener("mousemove", move, { passive: true });
-    document.addEventListener("mouseover", over, { passive: true });
-    document.addEventListener("mouseout", out, { passive: true });
-    return () => { window.removeEventListener("mousemove", move); document.removeEventListener("mouseover", over); document.removeEventListener("mouseout", out); if (raf.current) cancelAnimationFrame(raf.current); };
-  }, []);
-  return <><div id="strada-cursor" ref={c} style={{ left: 0, top: 0 }} /><div id="strada-cursor-ring" ref={r} style={{ left: 0, top: 0 }} /></>;
-}
-
-function Noise() {
-  const T = useTokens();
-  return <div className="no-print" style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none", opacity: T.noiseOpacity, backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize: "256px 256px" }} />;
-}
-
+// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   const T = useTokens();
   const isDark = theme === "dark";
   const ripple = useRipple();
   return (
-    <button onClick={e => { haptic("light"); ripple(e); toggleTheme(); }} title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      style={{ width: 40, height: 22, borderRadius: 11, border: `1px solid ${isDark ? "rgba(249,115,22,0.3)" : "rgba(234,101,0,0.3)"}`, background: isDark ? "rgba(249,115,22,0.1)" : "rgba(234,101,0,0.12)", cursor: "pointer", position: "relative", transition: "background .3s, border .3s", flexShrink: 0, overflow: "hidden" }} aria-label="Toggle theme">
-      <div style={{ position: "absolute", top: 2, left: isDark ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#c2410c)", transition: "left .25s cubic-bezier(.16,1,.3,1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8 }}>{isDark ? "☽" : "☀"}</div>
-    </button>
-  );
-}
-
-function Orbs({ page }) {
-  const [isMobile, setIsMobile] = useState(false);
-  const T = useTokens();
-  useEffect(() => { const check = () => setIsMobile(window.innerWidth <= 768); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
-  if (isMobile) return <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, background: `radial-gradient(ellipse 80% 50% at 50% 0%, ${T.orbColors[0]} 0%, transparent 70%)` }} />;
-  const orbs = page === "landing"
-    ? [{ x: "15%", y: "22%", s: 640, c: T.orbColors[0], b: 150, a: "orbFloat1 20s ease-in-out infinite" }, { x: "82%", y: "14%", s: 520, c: T.orbColors[1], b: 130, a: "orbFloat2 24s ease-in-out infinite" }, { x: "58%", y: "78%", s: 420, c: T.orbColors[2], b: 110, a: "orbFloat3 17s ease-in-out infinite" }, { x: "92%", y: "65%", s: 300, c: T.orbColors[3], b: 90, a: "orbFloat1 28s ease-in-out infinite reverse" }]
-    : [{ x: "85%", y: "8%", s: 420, c: T.orbColors[0], b: 110, a: "orbFloat2 22s ease-in-out infinite" }, { x: "5%", y: "55%", s: 360, c: T.orbColors[1], b: 90, a: "orbFloat3 19s ease-in-out infinite" }];
-  return (
-    <div className="no-print" style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
-      {orbs.map((o, i) => <div key={i} style={{ position: "absolute", left: o.x, top: o.y, width: o.s * 2, height: o.s * 2, transform: "translate(-50%,-50%)", background: `radial-gradient(circle, ${o.c} 0%, transparent 65%)`, filter: `blur(${o.b}px)`, animation: o.a, willChange: "transform" }} />)}
-      <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${T.gridLine} 1px,transparent 1px),linear-gradient(90deg,${T.gridLine} 1px,transparent 1px)`, backgroundSize: "80px 80px" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 0%,transparent 35%,rgba(0,0,0,0.25) 100%)" }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {isDark && (
+        <span style={{
+          fontSize: 9, color: T.accent, letterSpacing: "0.1em",
+          background: `${T.accent}18`, border: `1px solid ${T.accent}40`,
+          padding: "3px 8px", borderRadius: 4, fontFamily: "'JetBrains Mono',monospace"
+        }}>DARK</span>
+      )}
+      <button
+        onClick={e => { haptic("light"); ripple(e); toggleTheme(); }}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        style={{ width: 40, height: 22, borderRadius: 11, border: `1px solid ${isDark ? "rgba(249,115,22,0.3)" : "rgba(234,101,0,0.3)"}`, background: isDark ? "rgba(249,115,22,0.1)" : "rgba(234,101,0,0.12)", cursor: "pointer", position: "relative", transition: "background .3s, border .3s", flexShrink: 0, overflow: "hidden" }}
+        aria-label="Toggle theme"
+      >
+        <div style={{ position: "absolute", top: 2, left: isDark ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#c2410c)", transition: "left .25s cubic-bezier(.16,1,.3,1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8 }}>
+          {isDark ? "☽" : "☀"}
+        </div>
+      </button>
     </div>
   );
 }
 
+// ─── STATIC BACKGROUND (replaces animated Orbs — no GPU cost) ────────────────
+function StaticBg() {
+  const T = useTokens();
+  return (
+    <div className="strada-orb-bg no-print" style={{ background: T.orbBg }}>
+      <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${T.gridLine} 1px,transparent 1px),linear-gradient(90deg,${T.gridLine} 1px,transparent 1px)`, backgroundSize: "80px 80px" }} />
+    </div>
+  );
+}
+
+// ─── REVEAL HOOK ──────────────────────────────────────────────────────────────
 function useReveal() {
   useEffect(() => {
     const items = document.querySelectorAll(".strada-reveal:not(.visible)");
     if (!items.length) return;
-    const io = new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("visible"); io.unobserve(e.target); } }); }, { threshold: 0.08, rootMargin: "0px 0px -32px 0px" });
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("visible"); io.unobserve(e.target); } });
+    }, { threshold: 0.08, rootMargin: "0px 0px -32px 0px" });
     items.forEach(el => io.observe(el));
     return () => io.disconnect();
   }, []);
 }
 
-// ─── DIAGNOSTIC HERO ──────────────────────────────────────────────────────────
+// ─── DIAGNOSTIC HERO (rAF paused when off-screen) ────────────────────────────
 function DiagnosticHero() {
   const [scanAngle, setScanAngle] = useState(0);
   const [pings, setPings] = useState([]);
-  const [dataLines, setDataLines] = useState([]);
   const rafRef = useRef(null), angleRef = useRef(0), pingIdRef = useRef(0);
+  const containerRef = useRef(null);
+  const isVisibleRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
   const T = useTokens();
+
   useEffect(() => { const check = () => setIsMobile(window.innerWidth < 640); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
+
+  // Pause rAF when hero is off-screen
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const io = new IntersectionObserver(entries => {
+      isVisibleRef.current = entries[0].isIntersecting;
+    }, { threshold: 0.1 });
+    io.observe(containerRef.current);
+    return () => io.disconnect();
+  }, []);
+
   useEffect(() => {
     if (isMobile) {
-      const iv = setInterval(() => { angleRef.current = (angleRef.current + 2.5) % 360; setScanAngle(angleRef.current); }, 50);
-      const piv = setInterval(() => { const a = angleRef.current * Math.PI / 180, r = 60 + Math.random() * 55; setPings(p => [...p.slice(-3), { id: pingIdRef.current++, x: 150 + r * Math.cos(a), y: 150 + r * Math.sin(a) }]); }, 1600);
+      const iv = setInterval(() => {
+        if (!isVisibleRef.current) return;
+        angleRef.current = (angleRef.current + 2.5) % 360;
+        setScanAngle(angleRef.current);
+      }, 50);
+      const piv = setInterval(() => {
+        if (!isVisibleRef.current) return;
+        const a = angleRef.current * Math.PI / 180, r = 60 + Math.random() * 55;
+        setPings(p => [...p.slice(-3), { id: pingIdRef.current++, x: 150 + r * Math.cos(a), y: 150 + r * Math.sin(a) }]);
+      }, 1600);
       return () => { clearInterval(iv); clearInterval(piv); };
     }
     let lastPing = 0;
-    const tick = t => { angleRef.current = (angleRef.current + 0.8) % 360; setScanAngle(angleRef.current); if (t - lastPing > 900) { const a = angleRef.current * Math.PI / 180, r = 60 + Math.random() * 55; setPings(p => [...p.slice(-4), { id: pingIdRef.current++, x: 150 + r * Math.cos(a), y: 150 + r * Math.sin(a) }]); lastPing = t; } rafRef.current = requestAnimationFrame(tick); };
+    const tick = t => {
+      if (isVisibleRef.current) {
+        angleRef.current = (angleRef.current + 0.8) % 360;
+        setScanAngle(angleRef.current);
+        if (t - lastPing > 900) {
+          const a = angleRef.current * Math.PI / 180, r = 60 + Math.random() * 55;
+          setPings(p => [...p.slice(-4), { id: pingIdRef.current++, x: 150 + r * Math.cos(a), y: 150 + r * Math.sin(a) }]);
+          lastPing = t;
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
     rafRef.current = requestAnimationFrame(tick);
-    const iv = setInterval(() => setDataLines(Array.from({ length: 4 }, (_, i) => ({ key: Math.random(), value: `0x${Math.floor(Math.random() * 0xFFFF).toString(16).padStart(4, "0").toUpperCase()}`, label: ["TREAD", "WEAR", "DEPTH", "AGE"][i], delay: i * 0.12 }))), 1200);
-    return () => { cancelAnimationFrame(rafRef.current); clearInterval(iv); };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [isMobile]);
+
   const rad = scanAngle * Math.PI / 180, sweepX = 150 + 120 * Math.cos(rad), sweepY = 150 + 120 * Math.sin(rad);
   const rings = [40, 70, 100, 125], accent = T.accent;
+  const isLight = T === LIGHT;
+
   return (
-    <div className="hero-radar hero-radar-wrap" style={{ position: "relative", width: "min(340px,82vw)", height: "min(340px,82vw)", margin: "0 auto" }}>
-      {!isMobile && <div className="glow-pulse-anim" style={{ position: "absolute", inset: "-20%", borderRadius: "50%", background: `radial-gradient(circle, ${T.orbColors[0]} 0%, transparent 70%)`, filter: "blur(24px)" }} />}
+    <div ref={containerRef} className="hero-radar" style={{ position: "relative", width: "min(340px,82vw)", height: "min(340px,82vw)", margin: "0 auto" }}>
       <svg viewBox="0 0 300 300" style={{ width: "100%", height: "100%", overflow: "visible" }}>
         <defs>
-          <radialGradient id="radarBg" cx="50%" cy="50%"><stop offset="0%" stopColor={T === LIGHT ? "rgba(255,250,245,0.97)" : "rgba(20,20,20,0.95)"} /><stop offset="100%" stopColor={T === LIGHT ? "rgba(250,247,244,0.99)" : "rgba(8,8,8,0.98)"} /></radialGradient>
+          <radialGradient id="radarBg" cx="50%" cy="50%">
+            <stop offset="0%" stopColor={isLight ? "rgba(255,250,245,0.97)" : "rgba(20,20,20,0.95)"} />
+            <stop offset="100%" stopColor={isLight ? "rgba(250,247,244,0.99)" : "rgba(8,8,8,0.98)"} />
+          </radialGradient>
           <filter id="glow"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           <filter id="strongGlow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           <clipPath id="radarClip"><circle cx="150" cy="150" r="128" /></clipPath>
         </defs>
         <circle cx="150" cy="150" r="130" fill="url(#radarBg)" stroke={`${accent}33`} strokeWidth="1.5" />
         {rings.map((r, i) => <circle key={i} cx="150" cy="150" r={r} fill="none" stroke={`${accent}${i === rings.length - 1 ? "22" : "11"}`} strokeWidth="0.8" strokeDasharray={i === rings.length - 1 ? "none" : "4 4"} />)}
-        {[0, 45, 90, 135].map(a => { const aR = a * Math.PI / 180; return <line key={a} x1={150 + 8 * Math.cos(aR)} y1={150 + 8 * Math.sin(aR)} x2={150 + 125 * Math.cos(aR)} y2={150 + 125 * Math.sin(aR)} stroke={T === LIGHT ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.05)"} strokeWidth="0.6" />; })}
+        {[0, 45, 90, 135].map(a => { const aR = a * Math.PI / 180; return <line key={a} x1={150 + 8 * Math.cos(aR)} y1={150 + 8 * Math.sin(aR)} x2={150 + 125 * Math.cos(aR)} y2={150 + 125 * Math.sin(aR)} stroke={isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.05)"} strokeWidth="0.6" />; })}
         <g clipPath="url(#radarClip)">
           <path d={`M 150 150 L ${150 + 125 * Math.cos(rad - 0.52)} ${150 + 125 * Math.sin(rad - 0.52)} A 125 125 0 0 1 ${sweepX} ${sweepY} Z`} fill={`${accent}11`} />
           <path d={`M 150 150 L ${150 + 125 * Math.cos(rad - 0.22)} ${150 + 125 * Math.sin(rad - 0.22)} A 125 125 0 0 1 ${sweepX} ${sweepY} Z`} fill={`${accent}1e`} />
@@ -460,18 +490,13 @@ function DiagnosticHero() {
         {pings.map(p => <g key={p.id}><circle cx={p.x} cy={p.y} r="3.5" fill={accent} opacity="0.9" filter="url(#strongGlow)" />{!isMobile && <circle cx={p.x} cy={p.y} r="7" fill="none" stroke={`${accent}66`} strokeWidth="1" style={{ animation: "radarPing 1.2s ease-out forwards" }} />}</g>)}
         <g transform="translate(150,150)">
           <ellipse cx="0" cy="0" rx="28" ry="28" fill="none" stroke={`${accent}80`} strokeWidth="6" />
-          <ellipse cx="0" cy="0" rx="16" ry="16" fill={T === LIGHT ? "rgba(250,247,244,0.9)" : "rgba(14,14,14,0.9)"} stroke={`${accent}59`} strokeWidth="2" />
+          <ellipse cx="0" cy="0" rx="16" ry="16" fill={isLight ? "rgba(250,247,244,0.9)" : "rgba(14,14,14,0.9)"} stroke={`${accent}59`} strokeWidth="2" />
           <circle cx="0" cy="0" r="4" fill={accent} opacity="0.9" />
           {[0, 60, 120, 180, 240, 300].map(a => { const aR = a * Math.PI / 180; return <line key={a} x1={5 * Math.cos(aR)} y1={5 * Math.sin(aR)} x2={14 * Math.cos(aR)} y2={14 * Math.sin(aR)} stroke={`${accent}99`} strokeWidth="1.5" strokeLinecap="round" />; })}
         </g>
         {Array.from({ length: 12 }).map((_, i) => { const a = (i / 12) * Math.PI * 2; return <line key={i} x1={150 + 127 * Math.cos(a)} y1={150 + 127 * Math.sin(a)} x2={150 + 131 * Math.cos(a)} y2={150 + 131 * Math.sin(a)} stroke={`${accent}66`} strokeWidth="1.5" />; })}
         <circle cx="150" cy="150" r="130" fill="none" stroke={`${accent}40`} strokeWidth="1" />
       </svg>
-      {!isMobile && (
-        <div style={{ position: "absolute", top: "4%", right: "-2%", display: "flex", flexDirection: "column", gap: 5, fontFamily: "'JetBrains Mono',monospace" }}>
-          {dataLines.map(l => <div key={l.key} className="data-stream" style={{ "--delay": `${l.delay}s`, display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 8, color: T.textMuted, letterSpacing: "0.12em" }}>{l.label}</span><span style={{ fontSize: 9, color: T.accent }}>{l.value}</span></div>)}
-        </div>
-      )}
       <div style={{ position: "absolute", bottom: "4%", left: "2%", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: T.textMuted, letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 6 }}>
         <div className="dot-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: T.accent }} />SCANNING
       </div>
@@ -489,21 +514,18 @@ function ShopLocator() {
   const [coords, setCoords] = useState(null);
   const [selected, setSelected] = useState(null);
   const [errMsg, setErrMsg] = useState("");
-  const [retrying, setRetrying] = useState(false);
   const mapContainerRef = useRef(null);
   const leafletMap = useRef(null);
   const markersLayer = useRef(null);
-  const coordsRef = useRef(null); // stable ref so map effect never goes stale
+  const coordsRef = useRef(null);
   const shopsRef = useRef([]);
-  const G = useG(), T = useTokens();
-  const ripple = useRipple();
+  const G = useG(), T = useTokens(), ripple = useRipple();
 
-  // Keep refs in sync
   useEffect(() => { coordsRef.current = coords; }, [coords]);
   useEffect(() => { shopsRef.current = shops; }, [shops]);
 
   const fetchShops = useCallback(async (lat, lng, rad) => {
-    setStatus("loading"); setShops([]); setSelected(null); setRetrying(false);
+    setStatus("loading"); setShops([]); setSelected(null);
     const r = rad * 1000;
     const query = `[out:json][timeout:30];(node["shop"="tyres"](around:${r},${lat},${lng});node["shop"="car_repair"](around:${r},${lat},${lng});node["amenity"="car_repair"]["service:tyres"="yes"](around:${r},${lat},${lng});way["shop"="tyres"](around:${r},${lat},${lng});way["shop"="car_repair"](around:${r},${lat},${lng});relation["shop"="tyres"](around:${r},${lat},${lng}););out center 25;`;
     try {
@@ -524,7 +546,6 @@ function ShopLocator() {
       setShops(results);
       setStatus("done");
     } catch (err) {
-      console.error("Overpass error:", err);
       setErrMsg("All map servers failed. Please check your connection and try again.");
       setStatus("error");
     }
@@ -544,7 +565,6 @@ function ShopLocator() {
     );
   }, [radius, fetchShops]);
 
-  // Re-fetch when radius changes (only if we already have coords)
   const prevRadius = useRef(radius);
   useEffect(() => {
     if (prevRadius.current !== radius && coordsRef.current) {
@@ -553,22 +573,17 @@ function ShopLocator() {
     }
   }, [radius, fetchShops]);
 
-  // ── Map init/update — robust, waits for Leaflet to load ──
   useEffect(() => {
     if (status !== "done") return;
     const c = coordsRef.current;
     if (!c) return;
-
     let destroyed = false;
-
     loadLeaflet().then(L => {
       if (destroyed) return;
       const container = mapContainerRef.current;
       if (!container) return;
-
       const initMap = () => {
         if (destroyed) return;
-        // Update existing map
         if (leafletMap.current) {
           leafletMap.current.setView([c.lat, c.lng], 13);
           markersLayer.current?.clearLayers();
@@ -576,31 +591,20 @@ function ShopLocator() {
           setTimeout(() => leafletMap.current?.invalidateSize(), 150);
           return;
         }
-        // Destroy any stale leaflet instance on the container
-        if (container._leaflet_id) {
-          try { container._leaflet_id = null; } catch (_) {}
-        }
-        const map = L.map(container, { zoomControl: true, attributionControl: true, preferCanvas: true })
-          .setView([c.lat, c.lng], 13);
+        if (container._leaflet_id) { try { container._leaflet_id = null; } catch (_) {} }
+        const map = L.map(container, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView([c.lat, c.lng], 13);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(map);
         const layer = L.layerGroup().addTo(map);
-        leafletMap.current = map;
-        markersLayer.current = layer;
+        leafletMap.current = map; markersLayer.current = layer;
         addMarkers(L, map, layer, c, shopsRef.current);
         setTimeout(() => { if (!destroyed) map.invalidateSize(); }, 250);
       };
-
-      // Wait for container to be in DOM and have dimensions
-      if (container.offsetWidth > 0) { initMap(); }
+      if (container.offsetWidth > 0) initMap();
       else { const t = setTimeout(initMap, 200); return () => clearTimeout(t); }
-    }).catch(err => console.error("Leaflet load failed:", err));
+    }).catch(console.error);
+    return () => { destroyed = true; };
+  }, [status]);
 
-    return () => {
-      destroyed = true;
-    };
-  }, [status]); // eslint-disable-line
-
-  // Cleanup map on unmount
   useEffect(() => () => { if (leafletMap.current) { try { leafletMap.current.remove(); } catch (_) {} leafletMap.current = null; markersLayer.current = null; } }, []);
 
   if (status === "idle") return (
@@ -610,11 +614,11 @@ function ShopLocator() {
         <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, color: T.text, margin: "0 0 6px" }}>Find Nearby Tyre Shops</p>
         <p style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.7, margin: 0 }}>Based on your diagnosis, we recommend visiting a professional. Share your location to find the nearest tyre shops.</p>
       </div>
-      <button onClick={e => { haptic("medium"); ripple(e); locate(); }} className="mag-btn touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.06em", padding: "13px 28px", borderRadius: 10, cursor: "pointer", boxShadow: `0 0 28px ${T.accent}40`, width: "100%", position: "relative", overflow: "hidden" }}>◎ USE MY LOCATION</button>
+      <button onClick={e => { haptic("medium"); ripple(e); locate(); }} className="mag-btn touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.06em", padding: "13px 28px", borderRadius: 10, cursor: "pointer", width: "100%", position: "relative", overflow: "hidden" }}>◎ USE MY LOCATION</button>
     </div>
   );
   if (status === "locating") return <LocatorStatus icon="◎" msg="Getting your location…" sub="Please allow location access when prompted." spin />;
-  if (status === "loading") return <LocatorStatus icon="⌁" msg={retrying ? "Trying backup server…" : "Searching for tyre shops…"} sub={`Looking within ${radius} km radius.`} spin />;
+  if (status === "loading") return <LocatorStatus icon="⌁" msg="Searching for tyre shops…" sub={`Looking within ${radius} km radius.`} spin />;
   if (status === "denied") return <LocatorStatus icon="✕" msg="Location access denied" sub="Go to browser settings → Site permissions → Location → Allow, then try again." err onRetry={locate} />;
   if (status === "error") return <LocatorStatus icon="✕" msg="Something went wrong" sub={errMsg} err onRetry={locate} />;
 
@@ -631,13 +635,9 @@ function ShopLocator() {
       <div style={{ width: "100%", height: 260, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.border}`, marginBottom: 14, background: T === LIGHT ? "#e8e4e0" : "#111", position: "relative", zIndex: 1 }}>
         <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
       </div>
-      {shops.length === 0 && (
-        <div style={{ textAlign: "center", padding: "24px 0", color: T.textMuted, fontSize: 12 }}>
-          No tyre shops found within {radius} km. Try a larger radius.
-        </div>
-      )}
+      {shops.length === 0 && <div style={{ textAlign: "center", padding: "24px 0", color: T.textMuted, fontSize: 12 }}>No tyre shops found within {radius} km. Try a larger radius.</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {shops.map((shop, i) => <ShopCard key={shop.id} shop={shop} index={i} selected={selected?.id === shop.id} onClick={() => { haptic("light"); setSelected(s => s?.id === shop.id ? null : shop); }} />)}
+        {shops.map((shop) => <ShopCard key={shop.id} shop={shop} selected={selected?.id === shop.id} onClick={() => { haptic("light"); setSelected(s => s?.id === shop.id ? null : shop); }} />)}
       </div>
     </div>
   );
@@ -653,7 +653,7 @@ function addMarkers(L, map, layer, coords, shops) {
   });
 }
 
-function ShopCard({ shop, index, selected, onClick }) {
+function ShopCard({ shop, selected, onClick }) {
   const G = useG(), T = useTokens(), ripple = useRipple();
   return (
     <div onClick={e => { ripple(e); onClick(); }} className="touch-card" style={{ ...G.card, borderRadius: 12, padding: "14px 16px", cursor: "pointer", borderLeft: selected ? `2px solid ${T.accent}99` : `2px solid ${T.borderFaint}`, transition: "all .25s", background: selected ? `${T.accent}0a` : G.card.background, position: "relative", overflow: "hidden" }}>
@@ -712,7 +712,7 @@ function ResponsiveNav({ page, setPage }) {
       <nav className="no-print" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 500, padding: isMobile ? "0 16px" : "0 clamp(16px,4vw,40px)", height: 56, transition: "background .5s, box-shadow .5s", ...(scrolled ? { ...G.panel, borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" } : { background: "transparent", border: "none" }) }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: "100%" }}>
           <button onClick={e => { ripple(e); go("landing"); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: "4px 0", position: "relative", overflow: "hidden" }}>
-            <div style={{ width: 28, height: 28, borderRadius: 7, background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${T.accent}66`, flexShrink: 0 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <svg viewBox="0 0 24 24" style={{ width: 14, height: 14 }}><circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2.5" fill="none" /><circle cx="12" cy="12" r="3.5" stroke="white" strokeWidth="2" fill="none" /></svg>
             </div>
             <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, letterSpacing: "0.1em", fontSize: isMobile ? 16 : 18, color: T.text }}>STRADA</span>
@@ -723,7 +723,7 @@ function ResponsiveNav({ page, setPage }) {
                 <button key={p} onClick={e => { ripple(e); go(p); }} style={{ background: page === p ? `${T.accent}1e` : "transparent", border: page === p ? `1px solid ${T.accent}4d` : "1px solid transparent", color: page === p ? T.accent : T.textMuted, fontSize: 10, letterSpacing: "0.12em", padding: "7px 14px", borderRadius: 8, cursor: "pointer", transition: "all .25s", position: "relative", overflow: "hidden" }}>{l}</button>
               ))}
               <ThemeToggle />
-              <button onClick={e => { haptic("medium"); ripple(e); go("diagnose"); }} className="mag-btn" style={{ marginLeft: 8, background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.08em", padding: "8px 18px", borderRadius: 8, cursor: "pointer", boxShadow: `0 0 22px ${T.accent}47` }}>ANALYSE →</button>
+              <button onClick={e => { haptic("medium"); ripple(e); go("diagnose"); }} className="mag-btn" style={{ marginLeft: 8, background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.08em", padding: "8px 18px", borderRadius: 8, cursor: "pointer", boxShadow: "0 0 18px rgba(249,115,22,0.35)" }}>ANALYSE →</button>
             </div>
           )}
           {isMobile && <ThemeToggle />}
@@ -735,7 +735,7 @@ function ResponsiveNav({ page, setPage }) {
             <button key={tab.id} onClick={e => { ripple(e); go(tab.id); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "10px 0 6px", gap: 4, position: "relative", color: page === tab.id ? T.accent : T.textMuted, transition: "color .2s", overflow: "hidden" }}>
               <span style={{ fontSize: 16, lineHeight: 1 }}>{tab.icon}</span>
               <span style={{ fontSize: 8, letterSpacing: "0.1em", fontWeight: page === tab.id ? 700 : 400 }}>{tab.label}</span>
-              {page === tab.id && <div style={{ position: "absolute", top: 0, width: 32, height: 2, borderRadius: "0 0 2px 2px", background: T.accent, boxShadow: `0 0 8px ${T.accent}` }} />}
+              {page === tab.id && <div style={{ position: "absolute", top: 0, width: 32, height: 2, borderRadius: "0 0 2px 2px", background: T.accent }} />}
             </button>
           ))}
         </div>
@@ -760,14 +760,14 @@ function LandingPage({ setPage }) {
     <div>
       <section className="hero-section" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "clamp(80px,14vh,120px) clamp(16px,5vw,40px) clamp(40px,6vh,60px)", position: "relative" }}>
         <div className="hero-badge" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 28, ...G.panel, borderRadius: 100, padding: "8px 16px", flexWrap: "wrap", justifyContent: "center" }}>
-          <div className="dot-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, boxShadow: `0 0 12px ${T.accent}`, flexShrink: 0 }} />
+          <div className="dot-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: T.accent, flexShrink: 0 }} />
           <span style={{ fontSize: 9, color: T.textSub, letterSpacing: "0.12em" }}>AI-POWERED TYRE INTELLIGENCE</span>
           <span style={{ background: `${T.accent}24`, border: `1px solid ${T.accent}4d`, color: T.accent, fontSize: 9, letterSpacing: "0.1em", padding: "2px 8px", borderRadius: 4 }}>BETA</span>
         </div>
         <div className="hero-title-wrap"><h1 className={`hero-title ${theme === "dark" ? "shimmer-text" : "shimmer-text-light"}`} style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(72px,14vw,168px)", lineHeight: 0.87, letterSpacing: "-0.03em", margin: "0 0 24px" }}>STRADA</h1></div>
         <p className="hero-desc hero-desc-wrap" style={{ fontSize: "clamp(12px,1.5vw,16px)", color: T.textSub, maxWidth: 480, margin: "0 auto 44px", lineHeight: 1.8, padding: "0 8px" }}>Upload five tyre photos. Get a full AI diagnostic report in seconds — wear level, tread depth, pattern analysis, and explainable heatmaps.</p>
         <div className="hero-buttons hero-buttons-wrap" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", width: "100%", maxWidth: 400 }}>
-          <button onClick={e => { haptic("medium"); ripple(e); setPage("diagnose"); }} className="mag-btn hero-btn-glow touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,15px)", letterSpacing: "0.06em", padding: "16px 36px", borderRadius: 13, cursor: "pointer", boxShadow: `0 0 50px ${T.accent}66,0 4px 24px rgba(0,0,0,0.3)`, flex: 1, position: "relative", overflow: "hidden" }}>▶  RUN DIAGNOSTIC</button>
+          <button onClick={e => { haptic("medium"); ripple(e); setPage("diagnose"); }} className="mag-btn btn-primary-shadow touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,15px)", letterSpacing: "0.06em", padding: "16px 36px", borderRadius: 13, cursor: "pointer", flex: 1, position: "relative", overflow: "hidden" }}>▶  RUN DIAGNOSTIC</button>
           <button onClick={e => { haptic("light"); ripple(e); setPage("about"); }} className="mag-btn touch-btn" style={{ ...G.panel, borderRadius: 13, color: T.textSub, fontSize: "clamp(11px,2.5vw,13px)", letterSpacing: "0.06em", padding: "16px 28px", cursor: "pointer", border: `1px solid ${T.border}`, fontFamily: "'JetBrains Mono',monospace", flex: 1, position: "relative", overflow: "hidden" }}>HOW IT WORKS</button>
         </div>
         <div className="hero-stats hero-stats-wrap" style={{ display: "flex", gap: 0, justifyContent: "center", marginTop: 52 }}>
@@ -794,7 +794,7 @@ function LandingPage({ setPage }) {
         <div className="grid3">{features.map((f, i) => <div key={i} className="strada-reveal lift-card touch-card" style={{ ...G.card, borderRadius: 18, padding: "clamp(18px,3vw,28px)", position: "relative", overflow: "hidden", cursor: "default" }}><div style={{ position: "absolute", top: -8, right: 12, fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 88, color: `${T.accent}0a`, lineHeight: 1, userSelect: "none", pointerEvents: "none" }}>{f.n}</div><div style={{ fontSize: 20, marginBottom: 12, color: T.accent }}>{f.icon}</div><h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, letterSpacing: "-0.01em", margin: "0 0 8px" }}>{f.title}</h3><p style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.78, margin: 0 }}>{f.desc}</p></div>)}</div>
       </section>
       <section className="strada-reveal" style={{ maxWidth: 900, margin: "0 auto clamp(80px,12vh,130px)", padding: "0 clamp(16px,5vw,40px)" }}>
-        <div className="border-flow-anim" style={{ ...G.panel, borderRadius: 24, padding: "clamp(24px,5vw,56px)", position: "relative", overflow: "hidden" }}>
+        <div style={{ ...G.panel, borderRadius: 24, padding: "clamp(24px,5vw,56px)", position: "relative", overflow: "hidden", border: `1px solid ${T.accent}2e` }}>
           <div style={{ position: "absolute", top: 0, right: 0, width: "40%", height: "100%", background: `linear-gradient(135deg,transparent,${T.accent}0a)`, pointerEvents: "none" }} />
           <p style={{ fontSize: 10, color: T.accent, letterSpacing: "0.22em", marginBottom: 10 }}>PIPELINE</p>
           <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(20px,4vw,34px)", color: T.text, margin: "0 0 36px", letterSpacing: "-0.02em" }}>Upload → Analyse → Report</h3>
@@ -802,7 +802,7 @@ function LandingPage({ setPage }) {
             <div className="step-line" style={{ position: "absolute", top: 28, left: 32, right: 32, height: 1, background: `linear-gradient(90deg,${T.accent}66,${T.accent}1a,transparent)` }} />
             {["Upload 5 Images", "Flask runs 4 models", "Grad-CAM + scores", "Full report ready"].map((step, i) => (
               <div key={i} className="pipeline-step" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center", padding: "0 6px" }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", background: i === 0 ? `linear-gradient(135deg,${T.accentMid},${T.accentDark})` : G.card.background, border: `1px solid ${T.accent}4d`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: i === 0 ? `0 0 24px ${T.accent}59` : "none", position: "relative", zIndex: 1 }}>
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: i === 0 ? `linear-gradient(135deg,${T.accentMid},${T.accentDark})` : G.card.background, border: `1px solid ${T.accent}4d`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: i === 0 ? "0 0 18px rgba(249,115,22,0.4)" : "none", position: "relative", zIndex: 1 }}>
                   <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, color: i === 0 ? "white" : `${T.accent}8c` }}>0{i + 1}</span>
                 </div>
                 <span className="pipeline-step-text" style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.55, letterSpacing: "0.02em" }}>{step}</span>
@@ -810,7 +810,7 @@ function LandingPage({ setPage }) {
             ))}
           </div>
           <div style={{ marginTop: 44, textAlign: "center" }}>
-            <button onClick={e => { haptic("medium"); ripple(e); setPage("diagnose"); }} className="mag-btn touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,14px)", letterSpacing: "0.06em", padding: "15px 36px", borderRadius: 11, cursor: "pointer", boxShadow: `0 0 32px ${T.accent}47`, width: "100%", maxWidth: 280, position: "relative", overflow: "hidden" }}>START DIAGNOSTIC →</button>
+            <button onClick={e => { haptic("medium"); ripple(e); setPage("diagnose"); }} className="mag-btn touch-btn" style={{ background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,14px)", letterSpacing: "0.06em", padding: "15px 36px", borderRadius: 11, cursor: "pointer", boxShadow: "0 0 24px rgba(249,115,22,0.35)", width: "100%", maxWidth: 280, position: "relative", overflow: "hidden" }}>START DIAGNOSTIC →</button>
           </div>
         </div>
       </section>
@@ -864,7 +864,7 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
         <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 18, color: uploadedCount > 0 ? T.accent : T.textFaint }}>{uploadedCount}<span style={{ fontSize: 12, color: T.textMuted, fontFamily: "'JetBrains Mono'" }}>/{SLOTS.length}</span></span>
       </div>
       <div style={{ height: 3, background: T.ghost, borderRadius: 2, overflow: "hidden", marginBottom: 16 }}>
-        <div style={{ height: "100%", width: `${(uploadedCount / SLOTS.length) * 100}%`, background: `linear-gradient(90deg,${T.accentMid},${T.accent})`, borderRadius: 2, boxShadow: `0 0 12px ${T.accent}80`, transition: "width .6s cubic-bezier(.16,1,.3,1)" }} />
+        <div style={{ height: "100%", width: `${(uploadedCount / SLOTS.length) * 100}%`, background: `linear-gradient(90deg,${T.accentMid},${T.accent})`, borderRadius: 2, transition: "width .6s cubic-bezier(.16,1,.3,1)" }} />
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderRadius: 10, background: `${T.accent}0d`, border: `1px solid ${T.accent}1e`, marginBottom: 16 }}>
         <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>💡</span>
@@ -884,7 +884,7 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
   useEffect(() => { if (!file) { setPreview(null); return; } const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
   return (
     <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{ position: "relative", height: "clamp(90px,15vh,130px)", borderRadius: 12, overflow: "hidden", cursor: file ? "default" : "pointer", transition: "transform .1s, border-color .2s", WebkitTapHighlightColor: "transparent", ...(isDragging ? { background: `${T.accent}14`, border: `1.5px solid ${T.accent}99`, boxShadow: `0 0 28px ${T.accent}24` } : file ? { background: "rgba(0,0,0,0.45)", border: `1px solid ${T.border}` } : { background: T.ghost, border: `1px dashed ${T.border}` }) }}
+      style={{ position: "relative", height: "clamp(90px,15vh,130px)", borderRadius: 12, overflow: "hidden", cursor: file ? "default" : "pointer", transition: "border-color .2s", WebkitTapHighlightColor: "transparent", ...(isDragging ? { background: `${T.accent}14`, border: `1.5px solid ${T.accent}99` } : file ? { background: "rgba(0,0,0,0.45)", border: `1px solid ${T.border}` } : { background: T.ghost, border: `1px dashed ${T.border}` }) }}
       onClick={e => { if (!file) { ripple(e); onClick(); } }}>
       {preview ? (
         <>
@@ -892,8 +892,8 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           <div style={{ position: "absolute", inset: 0, background: hovered ? "rgba(0,0,0,0.6)" : "transparent", transition: "background .2s", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {hovered && <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ background: "rgba(239,68,68,0.9)", border: "none", color: "white", fontSize: 10, letterSpacing: "0.1em", padding: "6px 14px", borderRadius: 6, cursor: "pointer" }}>✕ REMOVE</button>}
           </div>
-          <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 11 }}>✕</button>
-          <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(16,185,129,0.88)", backdropFilter: "blur(8px)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "white", letterSpacing: "0.08em" }}>✓</div>
+          <button onClick={e => { e.stopPropagation(); haptic("medium"); onRemove(); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 11 }}>✕</button>
+          <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(16,185,129,0.88)", borderRadius: 5, padding: "2px 7px", fontSize: 9, color: "white", letterSpacing: "0.08em" }}>✓</div>
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 5px", background: "linear-gradient(transparent,rgba(0,0,0,0.7))" }}><p style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", margin: 0, letterSpacing: "0.08em", textAlign: "center" }}>{slot.label}</p></div>
         </>
       ) : (
@@ -907,7 +907,7 @@ function SlotTile({ slot, file, isDragging, inputRef, onDragOver, onDragLeave, o
           </div>
         </div>
       )}
-     <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
+      <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
     </div>
   );
 }
@@ -939,12 +939,20 @@ function DiagnosticLoader() {
   return (
     <div style={{ marginTop: 24, ...G.card, borderRadius: 20, padding: "clamp(16px,4vw,28px)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderFaint}` }}>
-        <div style={{ position: "relative", width: 34, height: 34, flexShrink: 0 }}><div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1.5px solid ${T.accent}26` }} /><div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1.5px solid ${T.accent}`, borderTopColor: "transparent", animation: "spin .88s linear infinite" }} /></div>
-        <div style={{ flex: 1, minWidth: 0 }}><p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, margin: "0 0 2px" }}>Running Diagnostic</p><p style={{ fontSize: 10, color: T.textFaint, margin: 0, letterSpacing: "0.06em" }}>{completedSteps.length}/{DIAGNOSTIC_STEPS.length} modules complete</p></div>
-        <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>{DIAGNOSTIC_STEPS.map((s, i) => <div key={s.id} style={{ width: completedSteps.includes(s.id) ? 12 : activeStep === i ? 8 : 4, height: 4, borderRadius: 2, background: completedSteps.includes(s.id) ? "#10b981" : activeStep === i ? T.accent : T.ghost, transition: "all .3s cubic-bezier(.16,1,.3,1)" }} />)}</div>
+        <div style={{ position: "relative", width: 34, height: 34, flexShrink: 0 }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1.5px solid ${T.accent}26` }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1.5px solid ${T.accent}`, borderTopColor: "transparent", animation: "spin .88s linear infinite" }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, margin: "0 0 2px" }}>Running Diagnostic</p>
+          <p style={{ fontSize: 10, color: T.textFaint, margin: 0, letterSpacing: "0.06em" }}>{completedSteps.length}/{DIAGNOSTIC_STEPS.length} modules complete</p>
+        </div>
+        <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+          {DIAGNOSTIC_STEPS.map((s, i) => <div key={s.id} style={{ width: completedSteps.includes(s.id) ? 12 : activeStep === i ? 8 : 4, height: 4, borderRadius: 2, background: completedSteps.includes(s.id) ? "#10b981" : activeStep === i ? T.accent : T.ghost, transition: "all .3s cubic-bezier(.16,1,.3,1)" }} />)}
+        </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {DIAGNOSTIC_STEPS.map((step, i) => { const done = completedSteps.includes(step.id), active = activeStep === i && !done; return <div key={step.id} className={done || active ? "status-anim" : ""} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderRadius: 10, background: active ? `${T.accent}0d` : done ? "rgba(16,185,129,0.04)" : "transparent", border: active ? `1px solid ${T.accent}26` : done ? "1px solid rgba(16,185,129,0.1)" : "1px solid transparent", transition: "all .3s ease", animationDelay: `${i * 0.04}s` }}><div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, background: done ? "rgba(16,185,129,0.15)" : active ? `${T.accent}1e` : T.ghost, border: done ? "1px solid rgba(16,185,129,0.3)" : active ? `1px solid ${T.accent}4d` : `1px solid ${T.border}` }}>{done ? <span style={{ color: "#10b981", fontSize: 10 }}>✓</span> : active ? <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent, animation: "pulse 1s ease-in-out infinite" }} /> : <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.textFaint }} />}</div><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 11, margin: "0 0 1px", color: done ? T.textMuted : active ? T.text : T.textFaint, fontFamily: active ? "'Syne',sans-serif" : "'JetBrains Mono',monospace", fontWeight: active ? 600 : 400, transition: "all .25s", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{step.label}</p>{active && <p style={{ fontSize: 9, color: `${T.accent}8c`, margin: 0, letterSpacing: "0.06em" }}>{step.detail}</p>}</div><span style={{ fontSize: 9, letterSpacing: "0.1em", flexShrink: 0, color: done ? "#10b981" : active ? T.accent : T.textFaint }}>{done ? "DONE" : active ? "RUN" : "…"}</span></div>; })}
+        {DIAGNOSTIC_STEPS.map((step, i) => { const done = completedSteps.includes(step.id), active = activeStep === i && !done; return <div key={step.id} className={done || active ? "status-anim" : ""} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderRadius: 10, background: active ? `${T.accent}0d` : done ? "rgba(16,185,129,0.04)" : "transparent", border: active ? `1px solid ${T.accent}26` : done ? "1px solid rgba(16,185,129,0.1)" : "1px solid transparent", transition: "all .3s ease" }}><div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, background: done ? "rgba(16,185,129,0.15)" : active ? `${T.accent}1e` : T.ghost, border: done ? "1px solid rgba(16,185,129,0.3)" : active ? `1px solid ${T.accent}4d` : `1px solid ${T.border}` }}>{done ? <span style={{ color: "#10b981", fontSize: 10 }}>✓</span> : active ? <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent, animation: "pulse 1s ease-in-out infinite" }} /> : <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.textFaint }} />}</div><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 11, margin: "0 0 1px", color: done ? T.textMuted : active ? T.text : T.textFaint, fontFamily: active ? "'Syne',sans-serif" : "'JetBrains Mono',monospace", fontWeight: active ? 600 : 400, transition: "all .25s", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{step.label}</p>{active && <p style={{ fontSize: 9, color: `${T.accent}8c`, margin: 0, letterSpacing: "0.06em" }}>{step.detail}</p>}</div><span style={{ fontSize: 9, letterSpacing: "0.1em", flexShrink: 0, color: done ? "#10b981" : active ? T.accent : T.textFaint }}>{done ? "DONE" : active ? "RUN" : "…"}</span></div>; })}
       </div>
     </div>
   );
@@ -975,7 +983,7 @@ function ScoreBar({ label, score, max, sublabel }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}><span style={{ fontSize: 11, color: T.textMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</span><span style={{ fontSize: 10, color: T.textFaint }}>{score}/{max} · {sublabel}</span></div>
-      <div style={{ height: 3, background: T.ghost, borderRadius: 2, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 2, boxShadow: `0 0 10px ${c}`, transition: "width 1.5s cubic-bezier(.16,1,.3,1)" }} /></div>
+      <div style={{ height: 3, background: T.ghost, borderRadius: 2, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 2, transition: "width 1.5s cubic-bezier(.16,1,.3,1)" }} /></div>
     </div>
   );
 }
@@ -989,7 +997,7 @@ function DepthMeter({ depth_mm, status, color, remaining_km }) {
         <span style={{ fontSize: 13, color: T.textMuted }}>mm</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: c, letterSpacing: "0.1em" }}>{status}</span>
       </div>
-      <div style={{ height: 5, background: T.ghost, borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 3, boxShadow: `0 0 12px ${c}`, transition: "width 1.5s cubic-bezier(.16,1,.3,1)" }} /></div>
+      <div style={{ height: 5, background: T.ghost, borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 3, transition: "width 1.5s cubic-bezier(.16,1,.3,1)" }} /></div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: T.textFaint, letterSpacing: "0.07em" }}><span>0mm</span><span style={{ color: `${T.accent}8c` }}>▲ 1.6 legal min</span><span>9mm new</span></div>
       {remaining_km != null && <p style={{ fontSize: 11, color: T.textMuted, margin: 0 }}>~{remaining_km.toLocaleString()} km remaining</p>}
     </div>
@@ -1032,170 +1040,263 @@ function GradCamDisplay({ base64, originalBase64 }) {
     <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}`, position: "relative" }}>
       {originalBase64 && <img src={`data:image/jpeg;base64,${originalBase64}`} alt="Original tread" style={{ width: "100%", objectFit: "contain", maxHeight: 240, display: "block" }} />}
       <img src={`data:image/jpeg;base64,${base64}`} alt="Grad-CAM" className={originalBase64 ? "gradcam-img" : ""} style={{ width: "100%", objectFit: "contain", maxHeight: 240, display: "block", ...(originalBase64 ? { position: "absolute", inset: 0, height: "100%", mixBlendMode: "multiply", filter: "saturate(1.8) contrast(1.1)" } : {}) }} />
-      <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", borderRadius: 5, padding: "3px 8px", fontSize: 9, color: `${T.accent}cc`, letterSpacing: "0.1em" }}>GRAD-CAM</div>
-      <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", borderRadius: 5, padding: "3px 8px", fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em" }}>{originalBase64 ? "OVERLAY" : "HEATMAP"}</div>
+      <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "3px 8px", fontSize: 9, color: `${T.accent}cc`, letterSpacing: "0.1em" }}>GRAD-CAM</div>
+      <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "3px 8px", fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em" }}>{originalBase64 ? "OVERLAY" : "HEATMAP"}</div>
     </div>
   );
 }
 
-// ─── PRINT REPORT — rendered into #print-root, hidden on screen, shown when printing ──
+// ─── PRINT REPORT — React Portal, properly injected into document.body ────────
 function PrintReport({ result, previews }) {
+  // Create a stable DOM node for the portal
+  const portalNode = useRef(null);
+  if (!portalNode.current) {
+    // Remove any stale node first
+    const stale = document.getElementById("strada-print-portal");
+    if (stale) stale.remove();
+    const node = document.createElement("div");
+    node.id = "strada-print-portal";
+    node.style.cssText = "display:none;position:fixed;left:-99999px;top:0;visibility:hidden";
+    document.body.appendChild(node);
+    portalNode.current = node;
+  }
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (portalNode.current) {
+        portalNode.current.remove();
+        portalNode.current = null;
+      }
+    };
+  }, []);
+
   const u = URGENCY[result.urgency] || URGENCY.medium;
   const now = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   const time = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  const reportId = `STR-${Date.now().toString(36).toUpperCase().slice(-6)}`;
   const health = result?.health || {};
   const depth = result?.tread_depth || {};
-  const depthPct = Math.min(((depth.depth_mm || 0) / 9) * 100, 100);
-  const depthBarBg = depthPct >= 60 ? "#059669" : depthPct >= 25 ? "#d97706" : "#dc2626";
-  const healthColor = health.color === "green" ? "#059669" : health.color === "yellow" ? "#d97706" : "#dc2626";
-  const urgencyBadgeClass = `print-badge-${result.urgency || "medium"}`;
   const breakdown = health.breakdown || {};
+  const depthPct = Math.min(((depth.depth_mm || 0) / 9) * 100, 100);
+  const depthBarColor = depthPct >= 60 ? "#059669" : depthPct >= 25 ? "#d97706" : "#dc2626";
+  const healthColor = health.color === "green" ? "#059669" : health.color === "yellow" ? "#d97706" : "#dc2626";
+  const urgencyBadgeClass = `pt-badge pt-badge-${result.urgency || "medium"}`;
+  const urgencyTextColor = result.urgency === "high" ? "#dc2626" : result.urgency === "medium" ? "#d97706" : "#059669";
+  const healthScorePct = ((health.score ?? 0) / 100) * 263.9;
 
-  // Use a portal-style div injected at body level so @media print can target it exclusively
-  useEffect(() => {
-    let root = document.getElementById("print-root");
-    if (!root) { root = document.createElement("div"); root.id = "print-root"; document.body.appendChild(root); }
-    // We'll render content into it via innerHTML — simpler than a full React portal for print
-    return () => {};
-  }, []);
-
-  // Actually render as hidden DOM that print CSS makes visible
-  return (
-    <div id="print-root" style={{ display: "none", position: "fixed", left: "-99999px", top: 0, visibility: "hidden" }}>
-      {/* PAGE 1 — Summary */}
-      <div className="print-page" style={{ padding: "0 0 20pt" }}>
+  const content = (
+    <>
+      {/* ── PAGE 1 — SUMMARY ── */}
+      <div className="print-page" style={{ padding: "0 0 24pt", position: "relative" }}>
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14pt" }}>
-          <div>
-            <p className="print-h1" style={{ fontSize: "24pt", color: "#111", fontFamily: "sans-serif", fontWeight: 800, margin: 0 }}>STRADA</p>
-            <p className="print-label" style={{ margin: "2pt 0 0" }}>AI TYRE DIAGNOSTIC REPORT</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12pt" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10pt" }}>
+            <div style={{ width: "36pt", height: "36pt", borderRadius: "8pt", background: "#ea6500", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 900, fontSize: "18pt", color: "white", lineHeight: 1 }}>S</span>
+            </div>
+            <div>
+              <p className="pt-h1" style={{ fontSize: "22pt" }}>STRADA</p>
+              <p className="pt-label" style={{ marginBottom: 0 }}>AI TYRE DIAGNOSTIC REPORT</p>
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p className="print-small" style={{ margin: 0 }}>Generated: {now} at {time}</p>
-            <p className="print-small" style={{ margin: "2pt 0 0", color: "#aaa" }}>FOR PROFESSIONAL / WORKSHOP USE</p>
+            <p className="pt-small" style={{ margin: 0, fontWeight: 700 }}>Report ID: {reportId}</p>
+            <p className="pt-small" style={{ margin: "3pt 0 0" }}>{now} at {time}</p>
+            <p className="pt-small" style={{ margin: "2pt 0 0", color: "#aaa" }}>FOR WORKSHOP / PROFESSIONAL USE</p>
           </div>
         </div>
-        <hr className="print-divider" />
+        <hr className="pt-rule-heavy" style={{ marginBottom: "12pt" }} />
 
         {/* Urgency banner */}
-        <div className={urgencyBadgeClass}>
-          <p style={{ margin: 0, fontFamily: "sans-serif", fontWeight: 700, fontSize: "11pt" }}>{u.label} — {result.recommendation || "See full report"}</p>
-        </div>
-
-        {/* KPI grid */}
-        <div className="print-row">
-          <div className="print-col">
-            <p className="print-label">HEALTH GRADE</p>
-            <p className="print-value" style={{ color: healthColor }}>{health.grade || "—"}</p>
-            <p className="print-small">{health.score ?? "—"} / 100 · {health.label || ""}</p>
-          </div>
-          <div className="print-col">
-            <p className="print-label">TREAD DEPTH</p>
-            <p className="print-value">{depth.depth_mm ?? "—"} <span style={{ fontSize: "11pt", fontWeight: 400, color: "#666" }}>mm</span></p>
-            <p className="print-small" style={{ marginBottom: "4pt" }}>{depth.status || ""}</p>
-            <div className="print-bar-track"><div className="print-bar-fill" style={{ width: `${depthPct}%`, background: depthBarBg }} /></div>
-            <p className="print-small" style={{ marginTop: "4pt" }}>Legal min: 1.6 mm{depth.remaining_km != null ? ` · ~${depth.remaining_km.toLocaleString()} km remaining` : ""}</p>
-          </div>
-          <div className="print-col">
-            <p className="print-label">URGENCY</p>
-            <p className="print-value" style={{ fontSize: "14pt", color: u.text }}>{u.label}</p>
-            <p className="print-small">Action required{result.urgency === "high" ? " immediately" : result.urgency === "medium" ? " soon" : ": monitor"}</p>
+        <div className={urgencyBadgeClass} style={{ marginBottom: "12pt" }}>
+          <div style={{ width: "10pt", height: "10pt", borderRadius: "50%", background: urgencyTextColor, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 900, fontSize: "12pt", color: urgencyTextColor }}>{u.label}</span>
+            <span style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "9pt", color: "#444", marginLeft: "8pt" }}>{result.recommendation || "See full report for details."}</span>
           </div>
         </div>
 
-        {/* Details grid */}
-        <div className="print-row">
-          <div className="print-col">
-            <p className="print-label">WEAR LEVEL</p>
-            <p style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "12pt", color: result.urgency === "high" ? "#dc2626" : "#111", margin: "4pt 0 2pt" }}>{result.wear_level || "—"}</p>
-            {result.cause && <p className="print-small">{result.cause}</p>}
+        {/* KPI grid — 3 columns */}
+        <div className="pt-kpi-grid print-no-break" style={{ marginBottom: "10pt" }}>
+          {/* Health Score with SVG gauge */}
+          <div className="pt-kpi">
+            <p className="pt-label">OVERALL HEALTH</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "10pt" }}>
+              <svg viewBox="0 0 60 60" style={{ width: "45pt", height: "45pt", transform: "rotate(-90deg)", flexShrink: 0 }}>
+                <circle cx="30" cy="30" r="25" fill="none" stroke="#f3f4f6" strokeWidth="5" />
+                <circle cx="30" cy="30" r="25" fill="none" stroke={healthColor} strokeWidth="5"
+                  strokeDasharray={`${(health.score ?? 0) / 100 * 157.1} 157.1`} strokeLinecap="round" />
+              </svg>
+              <div>
+                <p className="pt-value" style={{ color: healthColor, fontSize: "24pt" }}>{health.grade || "—"}</p>
+                <p className="pt-small">{health.score ?? "—"}/100</p>
+                <p className="pt-small" style={{ fontStyle: "italic" }}>{health.label || ""}</p>
+              </div>
+            </div>
           </div>
-          <div className="print-col">
-            <p className="print-label">WEAR PATTERN</p>
-            <p style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "12pt", color: "#111", margin: "4pt 0 2pt" }}>{result.pattern || "—"}</p>
-            {result.cause && <p className="print-small">{result.cause}</p>}
+
+          {/* Tread depth */}
+          <div className="pt-kpi">
+            <p className="pt-label">TREAD DEPTH</p>
+            <p className="pt-value" style={{ color: depthBarColor }}>{depth.depth_mm ?? "—"}<span style={{ fontSize: "11pt", fontWeight: 400, color: "#666" }}> mm</span></p>
+            <p className="pt-small" style={{ marginBottom: "5pt" }}>{depth.status || ""}</p>
+            <div className="pt-bar-track">
+              <div style={{ width: `${depthPct}%`, height: "100%", background: depthBarColor, borderRadius: "3pt" }} />
+            </div>
+            <p className="pt-small" style={{ marginTop: "4pt" }}>Min: 1.6 mm{depth.remaining_km != null ? ` · ~${depth.remaining_km.toLocaleString()} km left` : ""}</p>
           </div>
-          <div className="print-col">
-            <p className="print-label">TYRE AGE / DOT</p>
-            <p style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "12pt", color: "#111", margin: "4pt 0 2pt" }}>{result.tyre_age?.age_display || "Unknown"}</p>
-            <p className="print-small">{result.tyre_age?.manufacture || ""}{!result.tyre_age?.dot_found ? " (DOT not detected)" : ""}</p>
+
+          {/* Urgency */}
+          <div className="pt-kpi">
+            <p className="pt-label">URGENCY LEVEL</p>
+            <p className="pt-value" style={{ fontSize: "16pt", color: urgencyTextColor }}>{u.label}</p>
+            <p className="pt-small" style={{ marginTop: "4pt", lineHeight: 1.5 }}>
+              {result.urgency === "high" ? "Replace immediately — unsafe to drive." : result.urgency === "medium" ? "Replace within 2 weeks / 1,000 km." : "Monitor at next service interval."}
+            </p>
           </div>
-          <div className="print-col">
-            <p className="print-label">SIDEWALL</p>
-            <p style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "12pt", color: result.sidewall && result.sidewall !== "None" ? "#dc2626" : "#059669", margin: "4pt 0 2pt" }}>{result.sidewall === "None" ? "No damage" : result.sidewall || "—"}</p>
-            <p className="print-small">{result.sidewall && result.sidewall !== "None" ? "⚠ Damage detected — inspect immediately" : "Sidewall visually clear"}</p>
+        </div>
+
+        {/* Details — 4 columns */}
+        <div className="pt-4col print-no-break" style={{ marginBottom: "10pt" }}>
+          <div className="pt-kpi-2">
+            <p className="pt-label">WEAR LEVEL</p>
+            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.urgency === "high" ? "#dc2626" : "#111", margin: "4pt 0 2pt" }}>{result.wear_level || "—"}</p>
+            {result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}
+          </div>
+          <div className="pt-kpi-2">
+            <p className="pt-label">WEAR PATTERN</p>
+            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.pattern || "—"}</p>
+            {result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}
+          </div>
+          <div className="pt-kpi-2">
+            <p className="pt-label">TYRE AGE / DOT</p>
+            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.tyre_age?.age_display || "Unknown"}</p>
+            <p className="pt-small">{result.tyre_age?.manufacture || ""}{!result.tyre_age?.dot_found ? " (DOT not detected)" : ""}</p>
+          </div>
+          <div className="pt-kpi-2">
+            <p className="pt-label">SIDEWALL</p>
+            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.sidewall && result.sidewall !== "None" ? "#dc2626" : "#059669", margin: "4pt 0 2pt" }}>{result.sidewall === "None" ? "No damage" : result.sidewall || "—"}</p>
+            <p className="pt-small">{result.sidewall && result.sidewall !== "None" ? "⚠ Inspect immediately" : "Visually clear"}</p>
           </div>
         </div>
 
         {/* Recommendation */}
-        <div style={{ border: "0.75pt solid #e5e7eb", borderLeft: "3pt solid #ea580c", borderRadius: "0 5pt 5pt 0", padding: "10px 14px", marginBottom: "12pt" }}>
-          <p className="print-label" style={{ color: "#ea580c", marginBottom: "4pt" }}>WORKSHOP RECOMMENDATION</p>
-          <p style={{ fontFamily: "sans-serif", fontSize: "10pt", color: "#333", lineHeight: 1.65, margin: 0 }}>{result.recommendation || "Consult a qualified tyre technician for full inspection."}</p>
+        <div className="pt-reco print-no-break">
+          <p className="pt-h3" style={{ color: "#ea580c", marginBottom: "5pt" }}>WORKSHOP RECOMMENDATION</p>
+          <p className="pt-body">{result.recommendation || "Consult a qualified tyre technician for a full physical inspection."}</p>
         </div>
 
         {/* Quality warnings */}
         {result.warnings?.length > 0 && (
-          <div style={{ background: "#fffbeb", border: "0.75pt solid #fcd34d", borderRadius: "5pt", padding: "8px 12px", marginBottom: "12pt" }}>
-            <p className="print-label" style={{ color: "#b45309", marginBottom: "4pt" }}>AI QUALITY FLAGS</p>
-            {result.warnings.map((w, i) => <p key={i} style={{ fontFamily: "sans-serif", fontSize: "9pt", color: "#666", margin: i > 0 ? "3pt 0 0" : 0 }}>• {w}</p>)}
+          <div className="pt-warn print-no-break">
+            <p className="pt-h3" style={{ color: "#b45309", marginBottom: "5pt" }}>AI QUALITY FLAGS</p>
+            {result.warnings.map((w, i) => <p key={i} className="pt-small" style={{ margin: i > 0 ? "3pt 0 0" : 0 }}>• {w}</p>)}
           </div>
         )}
 
-        <div className="print-footer"><span>STRADA AI Tyre Intelligence</span><span>Page 1 of 2</span></div>
+        {/* Footer */}
+        <div className="pt-footer">
+          <span>STRADA AI Tyre Intelligence · {reportId}</span>
+          <span>Page 1 of 2</span>
+          <span>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
+        </div>
       </div>
 
-      {/* PAGE 2 — Score breakdown + images */}
-      <div className="print-page">
-        <p style={{ fontFamily: "sans-serif", fontWeight: 800, fontSize: "16pt", color: "#111", margin: "0 0 10pt", letterSpacing: "-0.02em" }}>SCORE BREAKDOWN</p>
-        <hr className="print-divider" />
-        {Object.keys(breakdown).length > 0 ? (
-          <div style={{ marginBottom: "18pt" }}>
-            {Object.entries(breakdown).map(([key, val]) => {
-              const pct = ((val.score ?? 0) / (val.max ?? 100)) * 100;
-              const fc = pct >= 70 ? "#059669" : pct >= 40 ? "#d97706" : "#dc2626";
-              return (
-                <div key={key} className="print-score-row">
-                  <p style={{ fontFamily: "sans-serif", fontWeight: 600, fontSize: "9pt", color: "#333", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em", minWidth: "120pt" }}>{key}</p>
-                  <div style={{ flex: 1, height: "6pt", background: "#f3f4f6", borderRadius: "3pt", overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: fc }} /></div>
-                  <p style={{ fontFamily: "sans-serif", fontSize: "9pt", color: "#666", margin: 0, minWidth: "40pt", textAlign: "right" }}>{val.score ?? 0}/{val.max ?? 100}</p>
-                  <p style={{ fontFamily: "sans-serif", fontSize: "8pt", color: "#999", margin: 0, minWidth: "60pt", textAlign: "right" }}>{val.label || ""}</p>
-                </div>
-              );
-            })}
-          </div>
-        ) : <p style={{ fontFamily: "sans-serif", fontSize: "9pt", color: "#aaa", marginBottom: "18pt" }}>Score breakdown not available.</p>}
+      {/* ── PAGE 2 — SCORE BREAKDOWN + IMAGES + CHECKLIST ── */}
+      <div className="print-page print-break-before">
+        {/* Page 2 header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10pt" }}>
+          <p className="pt-h2" style={{ margin: 0 }}>SCORE BREAKDOWN</p>
+          <p className="pt-small">{reportId} · Page 2</p>
+        </div>
+        <hr className="pt-rule" style={{ marginBottom: "10pt" }} />
 
-        {/* Submitted images */}
-        {previews?.length > 0 && (
-          <>
-            <p style={{ fontFamily: "sans-serif", fontWeight: 700, fontSize: "11pt", color: "#333", margin: "0 0 8pt" }}>SUBMITTED IMAGES</p>
-            <div style={{ display: "flex", gap: "8pt", flexWrap: "wrap", marginBottom: "14pt" }}>
-              {previews.map(({ label, url }) => (
-                <div key={label} style={{ textAlign: "center" }}>
-                  <img src={url} alt={label} style={{ width: "80pt", height: "60pt", objectFit: "cover", borderRadius: "4pt", border: "0.5pt solid #e5e7eb", display: "block" }} />
-                  <p style={{ fontFamily: "sans-serif", fontSize: "7pt", color: "#999", margin: "3pt 0 0", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
+        {/* Score breakdown */}
+        <div className="print-no-break" style={{ marginBottom: "14pt" }}>
+          {Object.keys(breakdown).length > 0 ? Object.entries(breakdown).map(([key, val]) => {
+            const pct = ((val.score ?? 0) / (val.max ?? 100)) * 100;
+            const fc = pct >= 70 ? "#059669" : pct >= 40 ? "#d97706" : "#dc2626";
+            return (
+              <div key={key} className="pt-score-row">
+                <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "9pt", color: "#333", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{key}</p>
+                <div style={{ flex: 1, height: "6pt", background: "#f3f4f6", borderRadius: "3pt", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: fc }} />
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Action checklist for workshop */}
-        <div style={{ border: "0.75pt solid #e5e7eb", borderRadius: "5pt", padding: "10px 14px", marginBottom: "12pt" }}>
-          <p className="print-label" style={{ marginBottom: "6pt" }}>WORKSHOP ACTION CHECKLIST</p>
-          {[
-            result.urgency === "high" ? "⚠ IMMEDIATE: Replace tyre before vehicle is driven further" : result.urgency === "medium" ? "Schedule tyre replacement within next 2 weeks / 1,000 km" : "Monitor — re-inspect at next service",
-            `Tread depth: ${depth.depth_mm ?? "—"} mm — Legal minimum is 1.6 mm`,
-            result.sidewall && result.sidewall !== "None" ? `⚠ Sidewall issue: ${result.sidewall} — inspect for structural integrity` : "Sidewall: no damage detected",
-            `Wear pattern: ${result.pattern || "—"} — ${result.cause || "check alignment and inflation"}`,
-            result.tyre_age?.dot_found ? `DOT age: ${result.tyre_age.age_display} — ${result.tyre_age.manufacture || ""}` : "DOT code not detected — verify manufacture date physically",
-          ].map((item, i) => <p key={i} style={{ fontFamily: "sans-serif", fontSize: "9pt", color: "#333", margin: i > 0 ? "4pt 0 0" : 0, lineHeight: 1.5 }}>☐ {item}</p>)}
+                <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "9pt", color: "#555", margin: 0, textAlign: "right" }}>{val.score ?? 0}/{val.max ?? 100}</p>
+                <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "8pt", color: "#999", margin: 0, textAlign: "right", fontStyle: "italic" }}>{val.label || ""}</p>
+              </div>
+            );
+          }) : <p className="pt-small" style={{ margin: "0 0 14pt" }}>Score breakdown not available.</p>}
         </div>
 
-        <div className="print-footer"><span>STRADA AI Tyre Intelligence — NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span><span>Page 2 of 2</span></div>
+        {/* Two-col: Grad-CAM + Submitted images */}
+        <div className="pt-2col print-no-break" style={{ marginBottom: "14pt" }}>
+          <div>
+            <p className="pt-h3" style={{ marginBottom: "6pt" }}>GRAD-CAM ATTENTION MAP</p>
+            {result.gradcam_image
+              ? <img src={`data:image/jpeg;base64,${result.gradcam_image}`} alt="Grad-CAM" className="pt-gradcam" />
+              : <div style={{ height: "80pt", background: "#f9fafb", border: "0.75pt dashed #ddd", borderRadius: "3pt", display: "flex", alignItems: "center", justifyContent: "center" }}><p className="pt-small">Not available</p></div>}
+            <p className="pt-small" style={{ marginTop: "4pt", fontStyle: "italic" }}>Highlighted zones indicate regions driving the AI verdict.</p>
+          </div>
+          <div>
+            <p className="pt-h3" style={{ marginBottom: "6pt" }}>SUBMITTED IMAGES</p>
+            {previews?.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: previews.length > 3 ? "repeat(3,1fr)" : `repeat(${previews.length},1fr)`, gap: "5pt" }}>
+                {previews.map(({ label, url }) => (
+                  <div key={label} className="pt-img-cell">
+                    <img src={url} alt={label} style={{ width: "100%", height: "45pt", objectFit: "cover", borderRadius: "3pt", border: "0.5pt solid #e5e7eb", display: "block" }} />
+                    <p className="pt-img-label">{label}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="pt-small">No images submitted.</p>}
+          </div>
+        </div>
+
+        {/* Workshop action checklist */}
+        <div className="pt-checklist print-no-break">
+          <p className="pt-h3" style={{ marginBottom: "8pt" }}>WORKSHOP ACTION CHECKLIST</p>
+          {[
+            result.urgency === "high"
+              ? "⚠ IMMEDIATE: Do not drive — replace tyre before vehicle moves"
+              : result.urgency === "medium"
+              ? "Schedule tyre replacement within 2 weeks or 1,000 km"
+              : "Monitor condition — re-inspect at next scheduled service",
+            `Verify tread depth: measured ${depth.depth_mm ?? "—"} mm (legal minimum: 1.6 mm)`,
+            result.sidewall && result.sidewall !== "None"
+              ? `⚠ Sidewall issue detected: "${result.sidewall}" — check for structural integrity immediately`
+              : "Sidewall: no damage detected — verify physically at inspection",
+            `Wear pattern: "${result.pattern || "—"}" — ${result.cause || "inspect alignment, inflation, and suspension"}`,
+            result.tyre_age?.dot_found
+              ? `DOT code confirmed: ${result.tyre_age.age_display} — ${result.tyre_age.manufacture || "verify age"}`
+              : "DOT code not detected by AI — locate and read physical DOT code on sidewall",
+            "Cross-check opposite tyre for balanced wear distribution",
+            "Record findings in vehicle maintenance log",
+          ].map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: "8pt", marginBottom: "5pt", alignItems: "flex-start" }}>
+              <div style={{ width: "9pt", height: "9pt", border: "1pt solid #ccc", borderRadius: "2pt", flexShrink: 0, marginTop: "1pt" }} />
+              <p className="pt-body" style={{ margin: 0 }}>{item}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Disclaimer */}
+        <div style={{ marginTop: "12pt", padding: "8pt 12pt", background: "#f9fafb", border: "0.75pt solid #e5e7eb", borderRadius: "4pt" }}>
+          <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "7.5pt", color: "#999", margin: 0, lineHeight: 1.6 }}>
+            <strong style={{ color: "#666" }}>DISCLAIMER:</strong> This report is generated by the STRADA AI Tyre Intelligence system and is intended as a supplementary diagnostic aid only. It does not constitute a professional tyre inspection or safety certification. Always have tyres inspected by a qualified tyre technician before making safety-critical decisions. Report ID: {reportId}
+          </p>
+        </div>
+
+        <div className="pt-footer">
+          <span>STRADA AI Tyre Intelligence</span>
+          <span>Page 2 of 2</span>
+          <span>{now}</span>
+        </div>
       </div>
-    </div>
+    </>
   );
+
+  return createPortal(content, portalNode.current);
 }
 
 // ─── REPORT PAGE ──────────────────────────────────────────────────────────────
@@ -1210,7 +1311,6 @@ function ReportPage({ result, previews, onClose }) {
   const touchStartY = useRef(null);
   useEffect(() => { setIsMobile(window.innerWidth <= 640); }, []);
 
-  // Swipe down to close (iOS-style)
   const handleTouchStart = e => { touchStartY.current = e.touches[0].clientY; };
   const handleTouchMove = e => {
     if (touchStartY.current === null) return;
@@ -1235,13 +1335,11 @@ function ReportPage({ result, previews, onClose }) {
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
       style={{ position: "fixed", inset: 0, zIndex: 800, overflowY: "auto", background: T.bg, animation: "fadeIn .3s ease", WebkitOverflowScrolling: "touch", transition: "transform .3s cubic-bezier(.16,1,.3,1)" }}>
 
-      {/* Print template — hidden on screen */}
+      {/* React Portal print template */}
       <PrintReport result={resultWithAge} previews={previews} />
 
       <div className="no-print" style={{ maxWidth: 760, margin: "0 auto", padding: `clamp(20px,5vh,64px) clamp(14px,4vw,28px) ${isMobile ? "90px" : "48px"}` }}>
-        {/* Pull-to-close indicator on mobile */}
         {isMobile && <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}><div style={{ width: 36, height: 4, borderRadius: 2, background: T.border }} /></div>}
-
         <div className="report-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 14 }}>
           <div>
             <h1 className="report-header-title" style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "clamp(32px,8vw,52px)", color: T.text, letterSpacing: "-0.03em", margin: "0 0 4px", lineHeight: 1 }}>STRADA</h1>
@@ -1253,13 +1351,11 @@ function ReportPage({ result, previews, onClose }) {
             ))}
           </div>
         </div>
-
         <div style={{ borderRadius: 14, border: `1px solid ${u.border}`, background: u.bg, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div className="report-dot-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: u.dot, boxShadow: `0 0 14px ${u.glow}`, flexShrink: 0 }} />
+          <div className="report-dot-pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: u.dot, flexShrink: 0 }} />
           <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 13, color: u.text, letterSpacing: "0.1em" }}>{u.label}</span>
           <span style={{ fontSize: 12, color: T.textSub, flex: 1, minWidth: 160 }}>{result.recommendation}</span>
         </div>
-
         <div className="grid2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14, marginBottom: 14 }}>
           <div className="card-anim" style={{ ...G.card, borderRadius: 16, padding: "clamp(16px,3vw,26px)", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <p style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.14em", margin: 0, alignSelf: "flex-start" }}>OVERALL HEALTH</p>
@@ -1271,27 +1367,23 @@ function ReportPage({ result, previews, onClose }) {
             <p style={{ fontSize: 11, color: T.textFaint, margin: "10px 0 0", lineHeight: 1.6 }}>{result.tread_depth.message}</p>
           </div>
         </div>
-
         <div className="card-anim" style={{ ...G.card, borderRadius: 16, padding: "clamp(16px,3vw,26px)", marginBottom: 14, animationDelay: "0.16s" }}>
           <p style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.14em", margin: "0 0 18px" }}>SCORE BREAKDOWN</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {Object.entries(result.health.breakdown).map(([k, v]) => <ScoreBar key={k} label={k} score={v.score} max={v.max} sublabel={v.label} />)}
           </div>
         </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 14 }}>
           <div className="card-anim" style={{ animationDelay: "0.22s" }}><MiniCard label="WEAR LEVEL" value={result.wear_level} sub={result.cause} highlight={result.urgency === "high"} /></div>
           <div className="card-anim" style={{ animationDelay: "0.27s" }}><MiniCard label="WEAR PATTERN" value={result.pattern} sub={result.cause} /></div>
           <div className="card-anim" style={{ animationDelay: "0.32s" }}><EditableTyreAgeCard tyreAge={tyreAge} onChange={val => setTyreAge(prev => ({ ...prev, age_display: val }))} /></div>
           <div className="card-anim" style={{ animationDelay: "0.37s" }}><MiniCard label="SIDEWALL" value={result.sidewall} sub={result.sidewall === "None" ? "No damage detected" : "⚠ Damage detected"} highlight={result.sidewall !== "None"} /></div>
         </div>
-
         <div className="card-anim" style={{ ...G.card, borderRadius: 16, padding: "clamp(16px,3vw,26px)", marginBottom: 14, animationDelay: "0.42s" }}>
           <p style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.14em", margin: "0 0 14px" }}>GRAD-CAM ATTENTION MAP</p>
           <GradCamDisplay base64={result.gradcam_image} originalBase64={null} />
           <p style={{ fontSize: 10, color: T.textFaint, margin: "10px 0 0" }}>Highlighted regions indicate areas the model focused on during classification.</p>
         </div>
-
         {previews.length > 0 && (
           <div className="card-anim" style={{ ...G.card, borderRadius: 16, padding: "clamp(16px,3vw,26px)", marginBottom: 14, animationDelay: "0.48s" }}>
             <p style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.14em", margin: "0 0 14px" }}>SUBMITTED IMAGES</p>
@@ -1305,16 +1397,13 @@ function ReportPage({ result, previews, onClose }) {
             </div>
           </div>
         )}
-
         {result.warnings?.length > 0 && (
           <div style={{ borderRadius: 14, border: "1px solid rgba(245,158,11,0.2)", background: "rgba(245,158,11,0.04)", padding: "14px 18px", marginBottom: 14 }}>
             <p style={{ fontSize: 9, color: "#f59e0b", letterSpacing: "0.14em", margin: "0 0 8px" }}>QUALITY WARNINGS</p>
             {result.warnings.map((w, i) => <p key={i} style={{ fontSize: 11, color: "rgba(245,158,11,0.62)", margin: 0, lineHeight: 1.65 }}>{w}</p>)}
           </div>
         )}
-
         {showLocator && <ShopLocator />}
-
         <div style={{ paddingTop: 20, borderTop: `1px solid ${T.borderFaint}`, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 24 }}>
           <span style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.1em" }}>STRADA · TYRE INTELLIGENCE</span>
           <span style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.08em" }}>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
@@ -1334,7 +1423,7 @@ function ResultCard({ result, onViewReport }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderFaint}`, flexWrap: "wrap", gap: 10 }}>
         <span style={{ fontSize: 9, color: T.textFaint, letterSpacing: "0.18em" }}>DIAGNOSTIC RESULT</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 100, border: `1px solid ${u.border}`, background: u.bg }}>
-          <div className="report-dot-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: u.dot, boxShadow: `0 0 10px ${u.glow}` }} />
+          <div className="report-dot-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: u.dot }} />
           <span style={{ fontSize: 10, fontFamily: "'Syne',sans-serif", fontWeight: 700, color: u.text, letterSpacing: "0.12em" }}>{u.label}</span>
         </div>
       </div>
@@ -1388,7 +1477,7 @@ function DiagnosePage({ isMobile }) {
     try {
       const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+      const timeout = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: fd, signal: controller.signal });
       clearTimeout(timeout);
       const data = await res.json();
@@ -1417,7 +1506,7 @@ function DiagnosePage({ isMobile }) {
       </div>
       <UnifiedUploadCard files={files} onUpload={handleUpload} onRemove={handleRemove} />
       <button onClick={e => { if (!canAnalyse || loading) return; ripple(e); handleAnalyse(); }} disabled={!canAnalyse || loading} className={canAnalyse && !loading ? "mag-btn touch-btn" : ""}
-        style={{ width: "100%", padding: "16px", borderRadius: 14, cursor: canAnalyse && !loading ? "pointer" : "not-allowed", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,14px)", letterSpacing: "0.05em", transition: "all .3s", position: "relative", overflow: "hidden", ...(canAnalyse && !loading ? { background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", boxShadow: `0 0 50px ${T.accent}4d,0 6px 24px rgba(0,0,0,0.2)` } : { background: T.ghost, border: `1px solid ${T.border}`, color: T.textFaint }) }}>
+        style={{ width: "100%", padding: "16px", borderRadius: 14, cursor: canAnalyse && !loading ? "pointer" : "not-allowed", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "clamp(13px,3vw,14px)", letterSpacing: "0.05em", transition: "all .3s", position: "relative", overflow: "hidden", ...(canAnalyse && !loading ? { background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", boxShadow: "0 0 40px rgba(249,115,22,0.35),0 6px 24px rgba(0,0,0,0.15)" } : { background: T.ghost, border: `1px solid ${T.border}`, color: T.textFaint }) }}>
         {loading ? "ANALYSING…" : canAnalyse ? "▶  RUN DIAGNOSTIC" : "UPLOAD AT LEAST 1 IMAGE"}
       </button>
       {loading && <DiagnosticLoader />}
@@ -1435,13 +1524,11 @@ function DiagnosePage({ isMobile }) {
 export default function App() {
   const [page, setPage] = useState("landing");
   const [isMobile, setIsMobile] = useState(false);
-  const [theme, setTheme] = useState("dark");
+  // Light mode is now the default
+  const [theme, setTheme] = useState("light");
 
   useEffect(() => { const check = () => setIsMobile(window.innerWidth <= 640); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
   useEffect(() => { document.body.className = theme === "dark" ? "dark-mode" : "light-mode"; }, [theme]);
-
-  // Cleanup print-root on unmount
-  useEffect(() => () => { const pr = document.getElementById("print-root"); if (pr) pr.remove(); }, []);
 
   const toggleTheme = useCallback(() => setTheme(t => t === "dark" ? "light" : "dark"), []);
   const go = useCallback((p) => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
@@ -1450,10 +1537,8 @@ export default function App() {
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
-      {theme === "dark" && <Cursor />}
-      <Noise />
       <div style={{ minHeight: "100dvh", background: T.bg, color: T.text, position: "relative", fontFamily: "'JetBrains Mono', monospace" }}>
-        <Orbs page={page} />
+        <StaticBg />
         <ResponsiveNav page={page} setPage={go} />
         <div style={{ position: "relative", zIndex: 2 }}>
           {page === "landing" && <LandingPage setPage={go} />}
