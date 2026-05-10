@@ -56,7 +56,6 @@ function useTokens() { const { theme } = useTheme(); return theme === "dark" ? D
 function useG() {
   const T = useTokens();
   return {
-    // No backdropFilter — replaced with opaque backgrounds for GPU savings
     panel: { background: T.panel, border: `1px solid ${T.panelBorder}`, boxShadow: T.panelShadow },
     card: { background: T.surface, border: `1px solid ${T.cardBorder}`, boxShadow: T.cardShadow },
     ghost: { background: T.ghost, border: `1px solid ${T.border}` },
@@ -149,18 +148,112 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
 @keyframes rippleOut{0%{transform:scale(0);opacity:.35}100%{transform:scale(4);opacity:0}}
 @keyframes touchPress{0%{transform:scale(1)}50%{transform:scale(0.965)}100%{transform:scale(1)}}
 
+/* ── SPLASH SCREEN ANIMATIONS ── */
+@keyframes splashScanLine{
+  0%{transform:translateY(-100%);opacity:0}
+  10%{opacity:1}
+  90%{opacity:1}
+  100%{transform:translateY(100vh);opacity:0}
+}
+@keyframes splashBlink{
+  0%,49%{opacity:1}
+  50%,100%{opacity:0}
+}
+@keyframes splashFadeOut{
+  0%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.04)}
+}
+@keyframes splashLogoReveal{
+  0%{opacity:0;letter-spacing:0.5em;filter:blur(8px)}
+  100%{opacity:1;letter-spacing:-0.03em;filter:blur(0)}
+}
+@keyframes splashBarFill{
+  0%{width:0%}
+  100%{width:100%}
+}
+@keyframes splashGlitch{
+  0%,95%{clip-path:none;transform:none}
+  96%{clip-path:polygon(0 20%,100% 20%,100% 40%,0 40%);transform:translateX(-4px)}
+  97%{clip-path:polygon(0 60%,100% 60%,100% 80%,0 80%);transform:translateX(4px)}
+  98%{clip-path:polygon(0 10%,100% 10%,100% 25%,0 25%);transform:translateX(-2px)}
+  99%{clip-path:none;transform:none}
+}
+@keyframes splashRingExpand{
+  0%{transform:scale(0.6);opacity:1}
+  100%{transform:scale(2.2);opacity:0}
+}
+@keyframes splashDotMatrix{
+  0%,100%{opacity:0.15}
+  50%{opacity:0.6}
+}
+
+/* ── RADAR THEME TRANSITION ── */
+@keyframes radarExpand{
+  from{clip-path:circle(0% at var(--radar-x,50%) var(--radar-y,50%))}
+  to{clip-path:circle(150% at var(--radar-x,50%) var(--radar-y,50%))}
+}
+::view-transition-old(root){
+  animation:180ms cubic-bezier(.4,0,.2,1) both fade-out;
+}
+::view-transition-new(root){
+  animation:220ms cubic-bezier(.4,0,.2,1) both radarExpand;
+}
+@keyframes fade-out{
+  from{opacity:1}
+  to{opacity:0}
+}
+
+/* ── EASTER EGG — TYRE ROLL ── */
+@keyframes tyreRoll{
+  0%{transform:translateX(-120px) rotate(0deg);opacity:0}
+  5%{opacity:1}
+  95%{opacity:1}
+  100%{transform:translateX(calc(100vw + 120px)) rotate(1440deg);opacity:0}
+}
+@keyframes tyreBounceShadow{
+  0%,100%{transform:scaleX(1);opacity:0.4}
+  50%{transform:scaleX(0.7);opacity:0.15}
+}
+@keyframes tyreTrail{
+  0%{opacity:0.7;width:0}
+  100%{opacity:0;width:200px}
+}
+@keyframes skidMark{
+  0%{opacity:0;width:0;left:50%}
+  10%{opacity:0.8}
+  80%{opacity:0.6}
+  100%{opacity:0;width:80vw;left:10%}
+}
+@keyframes spinOut{
+  0%{transform:rotate(0deg) scale(1);opacity:1}
+  60%{transform:rotate(720deg) scale(0.3);opacity:0.5}
+  100%{transform:rotate(1080deg) scale(0);opacity:0}
+}
+@keyframes slickPopIn{
+  0%{transform:translateY(40px) scale(0.8);opacity:0}
+  70%{transform:translateY(-6px) scale(1.04);opacity:1}
+  100%{transform:translateY(0) scale(1);opacity:1}
+}
+@keyframes slickPopOut{
+  0%{transform:translateY(0) scale(1);opacity:1}
+  100%{transform:translateY(20px) scale(0.9);opacity:0}
+}
+@keyframes radarCenterPulse{
+  0%{transform:scale(1);box-shadow:0 0 0 0 rgba(249,115,22,0.8)}
+  50%{transform:scale(1.15);box-shadow:0 0 0 20px rgba(249,115,22,0)}
+  100%{transform:scale(1);box-shadow:0 0 0 0 rgba(249,115,22,0)}
+}
+
 /* Static backgrounds replace animated orbs/glows */
 .strada-orb-bg{position:fixed;inset:0;pointer-events:none;z-index:0}
 
 .strada-reveal{opacity:0;transform:translateY(30px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
 .strada-reveal.visible{opacity:1;transform:translateY(0)}
 
-/* Shimmer — only runs while in viewport via visibility */
 @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
 .shimmer-text{background:linear-gradient(90deg,#f97316 0%,#fb923c 20%,#fff 50%,#fb923c 80%,#f97316 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
 .shimmer-text-light{background:linear-gradient(90deg,#ea6500 0%,#f97316 20%,#1a1008 50%,#f97316 80%,#ea6500 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
 
-/* Pause shimmer when tab hidden */
 @media (prefers-reduced-motion: reduce){
   .shimmer-text,.shimmer-text-light{animation:none}
 }
@@ -182,7 +275,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
 .hero-radar-outer{animation:fadeIn 1.6s ease .75s both}
 .report-dot-pulse{animation:pulse 2s infinite}
 
-/* Replaced infinite box-shadow/border animations with static values */
 .btn-primary-shadow{box-shadow:0 0 32px rgba(249,115,22,0.4),0 4px 24px rgba(0,0,0,0.25)}
 
 @media(max-width:768px){
@@ -217,7 +309,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
   .hero-title{font-size:clamp(40px,13.5vw,78px)!important}
 }
 
-/* ── RIPPLE ── */
 .ripple{position:absolute;border-radius:50%;background:rgba(249,115,22,0.28);pointer-events:none;animation:rippleOut 0.55s ease-out forwards}
 
 .gradcam-img{mix-blend-mode:multiply;filter:saturate(1.6) contrast(1.1)}
@@ -245,32 +336,49 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
 body.light-mode{background:#faf7f4;color:#1a1008}
 body.dark-mode{background:#080808;color:#fff}
 
+/* ── SPLASH SCREEN ── */
+.splash-scanline{
+  position:absolute;
+  left:0;right:0;
+  height:2px;
+  background:linear-gradient(90deg,transparent,rgba(249,115,22,0.6),rgba(255,255,255,0.3),rgba(249,115,22,0.6),transparent);
+  animation:splashScanLine 2.2s ease-in-out infinite;
+  pointer-events:none;
+  z-index:10;
+}
+.splash-logo{
+  animation:splashLogoReveal 0.9s cubic-bezier(.16,1,.3,1) 0.4s both, splashGlitch 4s ease-in-out 1.5s infinite;
+}
+.splash-cursor{animation:splashBlink 0.8s step-start infinite}
+.splash-ring{
+  position:absolute;
+  border-radius:50%;
+  border:1px solid rgba(249,115,22,0.4);
+  animation:splashRingExpand 2s ease-out infinite;
+}
+.splash-dot{animation:splashDotMatrix 1.8s ease-in-out infinite}
+
+/* ─ EASTER EGG: SPINNING SLICK POPUP ── */
+.slick-popup-enter{animation:slickPopIn 0.5s cubic-bezier(.16,1,.3,1) forwards}
+.slick-popup-exit{animation:slickPopOut 0.3s ease forwards}
+
+/* ─ EASTER EGG: RADAR CENTER GLOW on triple-click ── */
+.radar-center-egg{animation:radarCenterPulse 0.6s ease-out 3}
+
 /* ═══════════════════════════════════════════════
-   PRINT STYLES — Premium workshop-ready report
+   PRINT STYLES
 ═══════════════════════════════════════════════ */
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-
-  /* Hide entire screen UI, show only portal */
   body > *{display:none!important}
   #strada-print-portal{display:block!important;visibility:visible!important;position:static!important}
-
-  @page{
-    size:A4;
-    margin:15mm 14mm 20mm;
-  }
+  @page{size:A4;margin:15mm 14mm 20mm}
   @page:first{margin-top:15mm}
-
-  /* Reset body for print */
   body{background:#fff!important;color:#111!important;overflow:visible!important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif!important}
-
-  /* ── Page break control ── */
   .print-page{page-break-after:always}
   .print-page:last-child{page-break-after:avoid}
   .print-no-break{page-break-inside:avoid;break-inside:avoid}
   .print-break-before{page-break-before:always;break-before:always}
-
-  /* ── Print Typography ── */
   .pt-h1{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:26pt;letter-spacing:-0.04em;color:#111!important;margin:0}
   .pt-h2{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:800;font-size:14pt;color:#111!important;margin:0 0 8pt}
   .pt-h3{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:9pt;color:#444!important;margin:0 0 4pt;text-transform:uppercase;letter-spacing:0.08em}
@@ -279,66 +387,41 @@ body.dark-mode{background:#080808;color:#fff}
   .pt-value{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:22pt;line-height:1.1;color:#111!important}
   .pt-small{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:8pt;color:#777!important}
   .pt-mono{font-family:'Courier New',Courier,monospace;font-size:8pt;color:#666!important}
-
-  /* ── Dividers ── */
   .pt-rule{border:none;border-top:0.75pt solid #ddd;margin:10pt 0}
   .pt-rule-heavy{border:none;border-top:2pt solid #111;margin:10pt 0}
-
-  /* ── Color utilities ── */
   .pt-green{color:#059669!important}
   .pt-yellow{color:#d97706!important}
   .pt-red{color:#dc2626!important}
   .pt-orange{color:#ea580c!important}
   .pt-muted{color:#888!important}
-
-  /* ── Badge (urgency) ── */
   .pt-badge{display:flex;align-items:center;gap:8pt;padding:8pt 12pt;border-radius:4pt;margin-bottom:12pt}
   .pt-badge-high{background:#fff0f0!important;border:1.5pt solid #fca5a5!important}
   .pt-badge-medium{background:#fffbeb!important;border:1.5pt solid #fde68a!important}
   .pt-badge-low{background:#f0fdf4!important;border:1.5pt solid #6ee7b7!important}
-
-  /* ── KPI grid ── */
   .pt-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:10pt}
   .pt-kpi{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
   .pt-kpi-2{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
   .pt-2col{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:10pt}
   .pt-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:6pt;margin-bottom:10pt}
-
-  /* ── Progress bars ── */
   .pt-bar-track{height:5pt;background:#f3f4f6!important;border-radius:3pt;overflow:hidden;margin-top:4pt}
   .pt-bar-fill-green{height:100%;background:#059669!important;border-radius:3pt}
   .pt-bar-fill-yellow{height:100%;background:#d97706!important;border-radius:3pt}
   .pt-bar-fill-red{height:100%;background:#dc2626!important;border-radius:3pt}
-
-  /* ── Score breakdown ── */
   .pt-score-table{width:100%;border-collapse:collapse;margin-bottom:10pt}
   .pt-score-row{display:grid;grid-template-columns:130pt 1fr 40pt 60pt;align-items:center;gap:8pt;padding:5pt 0;border-bottom:0.5pt solid #f0f0f0!important}
   .pt-score-row:last-child{border-bottom:none!important}
-
-  /* ── Workshop checklist ── */
   .pt-checklist{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;border-radius:0 4pt 4pt 0;padding:10pt 14pt;margin-bottom:10pt;background:#fff!important}
-
-  /* ── Images grid ── */
   .pt-images-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6pt;margin-bottom:10pt}
   .pt-img-cell{text-align:center}
   .pt-img-cell img{width:100%;height:50pt;object-fit:cover;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
   .pt-img-label{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:6pt;color:#aaa!important;text-transform:uppercase;letter-spacing:0.06em;margin-top:3pt}
-
-  /* ── Recommendation box ── */
   .pt-reco{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;padding:10pt 14pt;border-radius:0 4pt 4pt 0;margin-bottom:10pt;background:#fff!important}
-
-  /* ── Warning box ── */
   .pt-warn{background:#fffbeb!important;border:0.75pt solid #fcd34d!important;border-radius:4pt;padding:8pt 12pt;margin-bottom:10pt}
-
-  /* ── Print footer ── */
   .pt-footer{position:fixed;bottom:0;left:0;right:0;padding:5pt 14mm;border-top:0.5pt solid #ddd!important;display:flex;justify-content:space-between;align-items:center;background:#fff!important}
   .pt-footer span{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:7pt;color:#aaa!important}
-
-  /* ── Gradcam image ── */
   .pt-gradcam{width:100%;max-height:120pt;object-fit:contain;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
-
-  /* ── Gauge circle (SVG-based) ── */
   .pt-gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4pt}
+  .no-print{display:none!important}
 }
 `;
 
@@ -358,12 +441,461 @@ function useRipple() {
   }, []);
 }
 
-// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
-function ThemeToggle() {
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SPLASH SCREEN ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BOOT_LINES = [
+  { delay: 0,    text: "STRADA DIAGNOSTIC OS v2.4.1",         color: "#f97316" },
+  { delay: 180,  text: "Initialising EfficientNet-B3...",      color: "#94a3b8" },
+  { delay: 360,  text: "Loading YOLOv8 sidewall detector...", color: "#94a3b8" },
+  { delay: 520,  text: "Mounting Grad-CAM engine...",          color: "#94a3b8" },
+  { delay: 680,  text: "Calibrating tread depth model...",     color: "#94a3b8" },
+  { delay: 820,  text: "Pattern classifier ONLINE",            color: "#10b981" },
+  { delay: 960,  text: "EasyOCR DOT reader READY",             color: "#10b981" },
+  { delay: 1080, text: "Flask API handshake... OK",            color: "#10b981" },
+  { delay: 1200, text: "All systems nominal. Launching UI →",  color: "#f97316" },
+];
+
+function SplashScreen({ onComplete }) {
+  const [visibleLines, setVisibleLines] = useState([]);
+  const [progress, setProgress] = useState(0);
+  const [exiting, setExiting] = useState(false);
+  const [cursorLine, setCursorLine] = useState(0);
+  const progressRef = useRef(null);
+
+  useEffect(() => {
+    // Animate progress bar
+    let p = 0;
+    const totalDuration = 2200;
+    const interval = 40;
+    progressRef.current = setInterval(() => {
+      p = Math.min(p + (100 / (totalDuration / interval)), 100);
+      setProgress(p);
+      if (p >= 100) clearInterval(progressRef.current);
+    }, interval);
+
+    // Reveal boot lines one by one
+    BOOT_LINES.forEach((line, i) => {
+      setTimeout(() => {
+        setVisibleLines(prev => [...prev, i]);
+        setCursorLine(i);
+      }, line.delay + 300);
+    });
+
+    // Start exit sequence
+    setTimeout(() => {
+      setExiting(true);
+      setTimeout(() => onComplete(), 500);
+    }, 2800);
+
+    return () => { if (progressRef.current) clearInterval(progressRef.current); };
+  }, [onComplete]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "#040404",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      overflow: "hidden",
+      animation: exiting ? "splashFadeOut 0.5s cubic-bezier(.4,0,.2,1) forwards" : "none",
+    }}>
+      {/* Scanline sweep */}
+      <div className="splash-scanline" />
+
+      {/* Grid background */}
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: "linear-gradient(rgba(249,115,22,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(249,115,22,0.04) 1px,transparent 1px)",
+        backgroundSize: "48px 48px",
+      }} />
+
+      {/* Pulsing rings behind logo */}
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", pointerEvents: "none" }}>
+        {[0, 0.6, 1.2].map((delay, i) => (
+          <div key={i} className="splash-ring" style={{
+            width: `${200 + i * 120}px`, height: `${200 + i * 120}px`,
+            top: `${-(100 + i * 60)}px`, left: `${-(100 + i * 60)}px`,
+            animationDelay: `${delay}s`,
+            opacity: 0.3 - i * 0.08,
+          }} />
+        ))}
+      </div>
+
+      {/* Main content */}
+      <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 32, padding: "0 24px", maxWidth: 600, width: "100%" }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 8 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 11,
+              background: "linear-gradient(135deg,#fb923c,#c2410c)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 32px rgba(249,115,22,0.5)",
+            }}>
+              <svg viewBox="0 0 24 24" style={{ width: 22, height: 22 }}>
+                <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2.5" fill="none" />
+                <circle cx="12" cy="12" r="3.5" stroke="white" strokeWidth="2" fill="none" />
+              </svg>
+            </div>
+            <h1 className="splash-logo" style={{
+              fontFamily: "'Syne',sans-serif", fontWeight: 800,
+              fontSize: "clamp(42px,10vw,72px)",
+              color: "#fff", letterSpacing: "-0.03em", lineHeight: 1,
+            }}>STRADA</h1>
+          </div>
+          <p style={{ fontSize: 9, color: "rgba(249,115,22,0.6)", letterSpacing: "0.28em" }}>SMART TYRE RECOGNITION & DIAGNOSTIC ASSISTANT</p>
+        </div>
+
+        {/* Boot terminal */}
+        <div style={{
+          width: "100%", maxWidth: 480,
+          background: "rgba(249,115,22,0.04)",
+          border: "1px solid rgba(249,115,22,0.15)",
+          borderRadius: 10, padding: "16px 20px",
+          fontFamily: "'JetBrains Mono',monospace",
+          minHeight: 180,
+        }}>
+          <div style={{ fontSize: 9, color: "rgba(249,115,22,0.4)", marginBottom: 12, letterSpacing: "0.1em" }}>
+            ● BOOT SEQUENCE
+          </div>
+          {BOOT_LINES.map((line, i) => (
+            <div key={i} style={{
+              fontSize: 10.5, lineHeight: 1.8,
+              color: visibleLines.includes(i) ? line.color : "transparent",
+              transition: "color 0.2s ease",
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <span style={{ color: "rgba(249,115,22,0.3)" }}>›</span>
+              {line.text}
+              {cursorLine === i && visibleLines.includes(i) && (
+                <span className="splash-cursor" style={{ color: "#f97316" }}>▋</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ width: "100%", maxWidth: 480 }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            fontSize: 9, color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em", marginBottom: 8,
+          }}>
+            <span>LOADING MODULES</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <div style={{ height: 2, background: "rgba(249,115,22,0.1)", borderRadius: 1, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 1,
+              background: "linear-gradient(90deg,#c2410c,#f97316,#fb923c)",
+              width: `${progress}%`,
+              transition: "width 0.04s linear",
+              boxShadow: "0 0 8px rgba(249,115,22,0.6)",
+            }} />
+          </div>
+        </div>
+
+        {/* Dot matrix status */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="splash-dot" style={{
+              width: 4, height: 4, borderRadius: "50%",
+              background: progress > (i / 12) * 100 ? "#f97316" : "rgba(249,115,22,0.15)",
+              animationDelay: `${i * 0.15}s`,
+              transition: "background 0.3s ease",
+            }} />
+          ))}
+        </div>
+      </div>
+
+      {/* Corner decorations */}
+      <div style={{ position: "absolute", top: 16, left: 16, fontSize: 9, color: "rgba(249,115,22,0.3)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.1em" }}>SYS.INIT</div>
+      <div style={{ position: "absolute", top: 16, right: 16, fontSize: 9, color: "rgba(249,115,22,0.3)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.1em" }}>
+        {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+      </div>
+      <div style={{ position: "absolute", bottom: 16, left: 16, fontSize: 9, color: "rgba(255,255,255,0.1)", fontFamily: "'JetBrains Mono',monospace" }}>BUILD 241-ALPHA</div>
+      <div style={{ position: "absolute", bottom: 16, right: 16, fontSize: 9, color: "rgba(255,255,255,0.1)", fontFamily: "'JetBrains Mono',monospace" }}>© STRADA AI</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── EASTER EGGS ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Easter Egg 1: 8-bit tyre rolls across screen on radar triple-click ────────
+function RollingTyre({ onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3200);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return createPortal(
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      pointerEvents: "none", zIndex: 8000, overflow: "hidden",
+    }}>
+      {/* Skid marks trailing behind */}
+      <div style={{
+        position: "absolute",
+        bottom: "38%",
+        left: 0,
+        right: 0,
+        height: 6,
+        background: "repeating-linear-gradient(90deg,rgba(0,0,0,0.18) 0px,rgba(0,0,0,0.18) 18px,transparent 18px,transparent 32px)",
+        animation: "tyreTrail 3s ease forwards",
+        borderRadius: 3,
+      }} />
+
+      {/* The tyre itself */}
+      <div style={{
+        position: "absolute",
+        bottom: "36%",
+        left: 0,
+        animation: "tyreRoll 3s cubic-bezier(.2,.8,.4,1) forwards",
+        width: 80, height: 80,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {/* 8-bit pixel tyre (SVG) */}
+        <svg viewBox="0 0 32 32" width="72" height="72" style={{ imageRendering: "pixelated" }}>
+          {/* Outer tyre */}
+          <rect x="4" y="0" width="24" height="4" fill="#222" />
+          <rect x="0" y="4" width="4" height="24" fill="#222" />
+          <rect x="28" y="4" width="4" height="24" fill="#222" />
+          <rect x="4" y="28" width="24" height="4" fill="#222" />
+          <rect x="4" y="4" width="4" height="4" fill="#222" />
+          <rect x="24" y="4" width="4" height="4" fill="#222" />
+          <rect x="4" y="24" width="4" height="4" fill="#222" />
+          <rect x="24" y="24" width="4" height="4" fill="#222" />
+          {/* Inner tyre wall */}
+          <rect x="8" y="4" width="16" height="4" fill="#444" />
+          <rect x="4" y="8" width="4" height="16" fill="#444" />
+          <rect x="24" y="8" width="4" height="16" fill="#444" />
+          <rect x="8" y="24" width="16" height="4" fill="#444" />
+          {/* Rim */}
+          <rect x="8" y="8" width="16" height="16" fill="#888" />
+          <rect x="10" y="10" width="12" height="12" fill="#aaa" />
+          {/* Hub */}
+          <rect x="13" y="13" width="6" height="6" fill="#f97316" />
+          <rect x="14" y="14" width="4" height="4" fill="#fb923c" />
+          {/* Spokes (pixel style) */}
+          <rect x="12" y="8" width="2" height="4" fill="#777" />
+          <rect x="18" y="8" width="2" height="4" fill="#777" />
+          <rect x="12" y="20" width="2" height="4" fill="#777" />
+          <rect x="18" y="20" width="2" height="4" fill="#777" />
+          <rect x="8" y="12" width="4" height="2" fill="#777" />
+          <rect x="8" y="18" width="4" height="2" fill="#777" />
+          <rect x="20" y="12" width="4" height="2" fill="#777" />
+          <rect x="20" y="18" width="4" height="2" fill="#777" />
+          {/* Tread pattern (top) */}
+          <rect x="4" y="1" width="6" height="2" fill="#555" />
+          <rect x="14" y="0" width="4" height="2" fill="#555" />
+          <rect x="22" y="1" width="6" height="2" fill="#555" />
+        </svg>
+      </div>
+
+      {/* Shadow under tyre */}
+      <div style={{
+        position: "absolute",
+        bottom: "34.5%",
+        left: "48px",
+        width: 60, height: 8,
+        borderRadius: "50%",
+        background: "rgba(0,0,0,0.25)",
+        filter: "blur(3px)",
+        animation: "tyreRoll 3s cubic-bezier(.2,.8,.4,1) forwards",
+        animationDelay: "0.02s",
+      }} />
+
+      {/* Toast message */}
+      <div style={{
+        position: "absolute",
+        top: "30%", left: "50%", transform: "translateX(-50%)",
+        background: "rgba(15,15,15,0.92)",
+        border: "1px solid rgba(249,115,22,0.3)",
+        borderRadius: 10, padding: "10px 20px",
+        fontFamily: "'JetBrains Mono',monospace",
+        fontSize: 12, color: "#f97316",
+        whiteSpace: "nowrap",
+        animation: "fadeIn 0.4s ease 0.3s both",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+      }}>
+        🛞 Triple tap detected — tyre escaping the garage!
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Easter Egg 2: "Are you sure this isn't a racing slick?" popup ─────────────
+// Triggered when wear_level result contains "Bald" or urgency is "high"
+function RacingSlickPopup({ onClose }) {
+  const [exiting, setExiting] = useState(false);
+  const T = useTokens();
+
+  const handleClose = () => {
+    setExiting(true);
+    setTimeout(onClose, 320);
+  };
+
+  useEffect(() => {
+    const t = setTimeout(handleClose, 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 7000,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+      padding: "0 16px 32px",
+      pointerEvents: "none",
+    }}>
+      <div className={exiting ? "slick-popup-exit" : "slick-popup-enter"} style={{
+        pointerEvents: "all",
+        background: "linear-gradient(135deg,rgba(18,18,18,0.98),rgba(28,10,0,0.98))",
+        border: "1px solid rgba(239,68,68,0.35)",
+        borderLeft: "3px solid #ef4444",
+        borderRadius: 14, padding: "18px 22px",
+        maxWidth: 380, width: "100%",
+        boxShadow: "0 8px 48px rgba(239,68,68,0.25), 0 0 0 1px rgba(239,68,68,0.1)",
+        cursor: "pointer",
+      }} onClick={handleClose}>
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          {/* F1 tyre icon */}
+          <div style={{
+            width: 44, height: 44, flexShrink: 0,
+            background: "rgba(239,68,68,0.1)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20,
+          }}>🏎️</div>
+          <div style={{ flex: 1 }}>
+            <p style={{
+              fontFamily: "'Syne',sans-serif", fontWeight: 800,
+              fontSize: 13, color: "#ef4444",
+              margin: "0 0 6px", letterSpacing: "-0.01em",
+            }}>
+              Mate, are you sure this isn't a racing slick?
+            </p>
+            <p style={{
+              fontSize: 11, color: "rgba(255,255,255,0.45)",
+              lineHeight: 1.65, margin: "0 0 10px",
+            }}>
+              Our AI detects approximately <span style={{ color: "#f97316", fontWeight: 600 }}>zero tread remaining</span>. That's peak Formula 1 energy — but for a road car, that's an MOT fail waiting to happen. Please visit a tyre shop. Now. Like, immediately.
+            </p>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{
+                fontSize: 9, color: "rgba(239,68,68,0.5)",
+                letterSpacing: "0.1em",
+                fontFamily: "'JetBrains Mono',monospace",
+              }}>TAP TO DISMISS · AUTO-CLOSES IN 8s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Easter Egg 3: Spin-out skid marks on rapid theme toggle (≥4 toggles in 3s) ─
+function SpinOutOverlay({ onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 7500,
+      pointerEvents: "none", overflow: "hidden",
+    }}>
+      {/* Two diagonal skid marks */}
+      {[
+        { top: "42%", left: "5%", width: "40%", rotate: -8, delay: "0s" },
+        { top: "50%", left: "55%", width: "38%", rotate: 6, delay: "0.12s" },
+      ].map((sk, i) => (
+        <div key={i} style={{
+          position: "absolute",
+          top: sk.top, left: sk.left, width: sk.width, height: 10,
+          background: "repeating-linear-gradient(90deg,rgba(30,30,30,0.55) 0px,rgba(30,30,30,0.55) 14px,transparent 14px,transparent 22px)",
+          borderRadius: 5,
+          transform: `rotate(${sk.rotate}deg)`,
+          animation: `skidMark 0.8s cubic-bezier(.2,.8,.4,1) ${sk.delay} both`,
+          filter: "blur(1px)",
+        }} />
+      ))}
+
+      {/* Tyre marks from centre outward */}
+      <div style={{
+        position: "absolute", top: "46%", left: "50%",
+        transform: "translate(-50%,-50%)",
+        width: 120, height: 120, borderRadius: "50%",
+        border: "8px solid transparent",
+        borderTop: "8px solid rgba(30,30,30,0.4)",
+        borderBottom: "8px solid rgba(30,30,30,0.4)",
+        animation: "spinOut 1.2s cubic-bezier(.4,0,.2,1) both",
+      }} />
+
+      {/* Toast */}
+      <div style={{
+        position: "absolute", top: "28%", left: "50%", transform: "translateX(-50%)",
+        background: "rgba(0,0,0,0.88)",
+        border: "1px solid rgba(249,115,22,0.3)",
+        borderRadius: 8, padding: "8px 16px",
+        fontFamily: "'JetBrains Mono',monospace",
+        fontSize: 11, color: "#f97316",
+        whiteSpace: "nowrap",
+        animation: "fadeIn 0.3s ease both",
+      }}>
+        ⚠ Too fast — you spun out the theme engine!
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── THEME TOGGLE (with View Transitions + Easter Eggs) ───────────────────────
+function ThemeToggle({ onToggleEgg }) {
   const { theme, toggleTheme } = useTheme();
   const T = useTokens();
   const isDark = theme === "dark";
   const ripple = useRipple();
+  const toggleRef = useRef(null);
+  const toggleTimestamps = useRef([]);
+
+  const handleToggle = (e) => {
+    haptic("light");
+    ripple(e);
+
+    // Track toggle speed for spin-out Easter egg
+    const now = Date.now();
+    toggleTimestamps.current = [...toggleTimestamps.current, now].filter(t => now - t < 3000);
+    if (toggleTimestamps.current.length >= 4) {
+      toggleTimestamps.current = [];
+      onToggleEgg?.("spinout");
+      return; // Skip the actual toggle to make it funnier
+    }
+
+    // View Transitions API with radar expand effect
+    if (document.startViewTransition) {
+      // Pin the toggle button position as the radial origin
+      const btn = toggleRef.current;
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        const cx = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
+        const cy = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
+        document.documentElement.style.setProperty("--radar-x", `${cx}%`);
+        document.documentElement.style.setProperty("--radar-y", `${cy}%`);
+      }
+      document.startViewTransition(() => { toggleTheme(); });
+    } else {
+      // Fallback: plain toggle
+      toggleTheme();
+    }
+  };
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       {isDark && (
@@ -374,12 +906,26 @@ function ThemeToggle() {
         }}>DARK</span>
       )}
       <button
-        onClick={e => { haptic("light"); ripple(e); toggleTheme(); }}
+        ref={toggleRef}
+        onClick={handleToggle}
         title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ width: 40, height: 22, borderRadius: 11, border: `1px solid ${isDark ? "rgba(249,115,22,0.3)" : "rgba(234,101,0,0.3)"}`, background: isDark ? "rgba(249,115,22,0.1)" : "rgba(234,101,0,0.12)", cursor: "pointer", position: "relative", transition: "background .3s, border .3s", flexShrink: 0, overflow: "hidden" }}
+        style={{
+          width: 40, height: 22, borderRadius: 11,
+          border: `1px solid ${isDark ? "rgba(249,115,22,0.3)" : "rgba(234,101,0,0.3)"}`,
+          background: isDark ? "rgba(249,115,22,0.1)" : "rgba(234,101,0,0.12)",
+          cursor: "pointer", position: "relative",
+          transition: "background .3s, border .3s",
+          flexShrink: 0, overflow: "hidden",
+        }}
         aria-label="Toggle theme"
       >
-        <div style={{ position: "absolute", top: 2, left: isDark ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#c2410c)", transition: "left .25s cubic-bezier(.16,1,.3,1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8 }}>
+        <div style={{
+          position: "absolute", top: 2, left: isDark ? 20 : 2,
+          width: 16, height: 16, borderRadius: "50%",
+          background: "linear-gradient(135deg,#f97316,#c2410c)",
+          transition: "left .25s cubic-bezier(.16,1,.3,1)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8,
+        }}>
           {isDark ? "☽" : "☀"}
         </div>
       </button>
@@ -387,12 +933,16 @@ function ThemeToggle() {
   );
 }
 
-// ─── STATIC BACKGROUND (replaces animated Orbs — no GPU cost) ────────────────
+// ─── STATIC BACKGROUND ────────────────────────────────────────────────────────
 function StaticBg() {
   const T = useTokens();
   return (
     <div className="strada-orb-bg no-print" style={{ background: T.orbBg }}>
-      <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${T.gridLine} 1px,transparent 1px),linear-gradient(90deg,${T.gridLine} 1px,transparent 1px)`, backgroundSize: "80px 80px" }} />
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: `linear-gradient(${T.gridLine} 1px,transparent 1px),linear-gradient(90deg,${T.gridLine} 1px,transparent 1px)`,
+        backgroundSize: "80px 80px",
+      }} />
     </div>
   );
 }
@@ -410,8 +960,8 @@ function useReveal() {
   }, []);
 }
 
-// ─── DIAGNOSTIC HERO (rAF paused when off-screen) ────────────────────────────
-function DiagnosticHero() {
+// ─── DIAGNOSTIC HERO (with radar triple-click Easter egg) ────────────────────
+function DiagnosticHero({ onRadarTripleClick }) {
   const [scanAngle, setScanAngle] = useState(0);
   const [pings, setPings] = useState([]);
   const rafRef = useRef(null), angleRef = useRef(0), pingIdRef = useRef(0);
@@ -420,14 +970,21 @@ function DiagnosticHero() {
   const [isMobile, setIsMobile] = useState(false);
   const T = useTokens();
 
-  useEffect(() => { const check = () => setIsMobile(window.innerWidth < 640); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
+  // Triple-click tracking
+  const clickTimestamps = useRef([]);
+  const centerBtnRef = useRef(null);
+  const [centerGlowing, setCenterGlowing] = useState(false);
 
-  // Pause rAF when hero is off-screen
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current) return;
-    const io = new IntersectionObserver(entries => {
-      isVisibleRef.current = entries[0].isIntersecting;
-    }, { threshold: 0.1 });
+    const io = new IntersectionObserver(entries => { isVisibleRef.current = entries[0].isIntersecting; }, { threshold: 0.1 });
     io.observe(containerRef.current);
     return () => io.disconnect();
   }, []);
@@ -463,7 +1020,20 @@ function DiagnosticHero() {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [isMobile]);
 
-  const rad = scanAngle * Math.PI / 180, sweepX = 150 + 120 * Math.cos(rad), sweepY = 150 + 120 * Math.sin(rad);
+  const handleCenterClick = () => {
+    haptic("light");
+    const now = Date.now();
+    clickTimestamps.current = [...clickTimestamps.current, now].filter(t => now - t < 1500);
+    if (clickTimestamps.current.length >= 3) {
+      clickTimestamps.current = [];
+      setCenterGlowing(true);
+      setTimeout(() => setCenterGlowing(false), 1800);
+      onRadarTripleClick?.();
+    }
+  };
+
+  const rad = scanAngle * Math.PI / 180;
+  const sweepX = 150 + 120 * Math.cos(rad), sweepY = 150 + 120 * Math.sin(rad);
   const rings = [40, 70, 100, 125], accent = T.accent;
   const isLight = T === LIGHT;
 
@@ -491,12 +1061,23 @@ function DiagnosticHero() {
         <g transform="translate(150,150)">
           <ellipse cx="0" cy="0" rx="28" ry="28" fill="none" stroke={`${accent}80`} strokeWidth="6" />
           <ellipse cx="0" cy="0" rx="16" ry="16" fill={isLight ? "rgba(250,247,244,0.9)" : "rgba(14,14,14,0.9)"} stroke={`${accent}59`} strokeWidth="2" />
-          <circle cx="0" cy="0" r="4" fill={accent} opacity="0.9" />
+          {/* Clickable center — Easter egg trigger */}
+          <circle
+            cx="0" cy="0" r="10"
+            fill="transparent"
+            style={{ cursor: "pointer" }}
+            onClick={handleCenterClick}
+            className={centerGlowing ? "radar-center-egg" : ""}
+          />
+          <circle cx="0" cy="0" r="4" fill={accent} opacity="0.9"
+            style={centerGlowing ? { filter: `drop-shadow(0 0 8px ${accent})` } : {}}
+          />
           {[0, 60, 120, 180, 240, 300].map(a => { const aR = a * Math.PI / 180; return <line key={a} x1={5 * Math.cos(aR)} y1={5 * Math.sin(aR)} x2={14 * Math.cos(aR)} y2={14 * Math.sin(aR)} stroke={`${accent}99`} strokeWidth="1.5" strokeLinecap="round" />; })}
         </g>
         {Array.from({ length: 12 }).map((_, i) => { const a = (i / 12) * Math.PI * 2; return <line key={i} x1={150 + 127 * Math.cos(a)} y1={150 + 127 * Math.sin(a)} x2={150 + 131 * Math.cos(a)} y2={150 + 131 * Math.sin(a)} stroke={`${accent}66`} strokeWidth="1.5" />; })}
         <circle cx="150" cy="150" r="130" fill="none" stroke={`${accent}40`} strokeWidth="1" />
       </svg>
+      {/* Hint label — only shows after first few seconds */}
       <div style={{ position: "absolute", bottom: "4%", left: "2%", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: T.textMuted, letterSpacing: "0.1em", display: "flex", alignItems: "center", gap: 6 }}>
         <div className="dot-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: T.accent }} />SCANNING
       </div>
@@ -699,7 +1280,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-function ResponsiveNav({ page, setPage }) {
+function ResponsiveNav({ page, setPage, onToggleEgg }) {
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const G = useG(), T = useTokens(), ripple = useRipple();
@@ -722,11 +1303,11 @@ function ResponsiveNav({ page, setPage }) {
               {[["diagnose", "DIAGNOSE"], ["about", "HOW IT WORKS"]].map(([p, l]) => (
                 <button key={p} onClick={e => { ripple(e); go(p); }} style={{ background: page === p ? `${T.accent}1e` : "transparent", border: page === p ? `1px solid ${T.accent}4d` : "1px solid transparent", color: page === p ? T.accent : T.textMuted, fontSize: 10, letterSpacing: "0.12em", padding: "7px 14px", borderRadius: 8, cursor: "pointer", transition: "all .25s", position: "relative", overflow: "hidden" }}>{l}</button>
               ))}
-              <ThemeToggle />
+              <ThemeToggle onToggleEgg={onToggleEgg} />
               <button onClick={e => { haptic("medium"); ripple(e); go("diagnose"); }} className="mag-btn" style={{ marginLeft: 8, background: `linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border: "none", color: "white", fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.08em", padding: "8px 18px", borderRadius: 8, cursor: "pointer", boxShadow: "0 0 18px rgba(249,115,22,0.35)" }}>ANALYSE →</button>
             </div>
           )}
-          {isMobile && <ThemeToggle />}
+          {isMobile && <ThemeToggle onToggleEgg={onToggleEgg} />}
         </div>
       </nav>
       {isMobile && (
@@ -745,7 +1326,7 @@ function ResponsiveNav({ page, setPage }) {
 }
 
 // ─── LANDING PAGE ─────────────────────────────────────────────────────────────
-function LandingPage({ setPage }) {
+function LandingPage({ setPage, onRadarTripleClick }) {
   useReveal();
   const G = useG(), T = useTokens(), { theme } = useTheme(), ripple = useRipple();
   const features = useMemo(() => [
@@ -779,7 +1360,7 @@ function LandingPage({ setPage }) {
           ))}
         </div>
         <div className="hero-radar-outer" style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
-          <DiagnosticHero />
+          <DiagnosticHero onRadarTripleClick={onRadarTripleClick} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: 0.28 }}>
             <span style={{ fontSize: 9, letterSpacing: "0.22em", color: T.textMuted }}>SCROLL</span>
             <div style={{ width: 1, height: 36, background: `linear-gradient(180deg,${T.textMuted},transparent)` }} />
@@ -1046,12 +1627,10 @@ function GradCamDisplay({ base64, originalBase64 }) {
   );
 }
 
-// ─── PRINT REPORT — React Portal, properly injected into document.body ────────
+// ─── PRINT REPORT ─────────────────────────────────────────────────────────────
 function PrintReport({ result, previews }) {
-  // Create a stable DOM node for the portal
   const portalNode = useRef(null);
   if (!portalNode.current) {
-    // Remove any stale node first
     const stale = document.getElementById("strada-print-portal");
     if (stale) stale.remove();
     const node = document.createElement("div");
@@ -1060,14 +1639,8 @@ function PrintReport({ result, previews }) {
     document.body.appendChild(node);
     portalNode.current = node;
   }
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (portalNode.current) {
-        portalNode.current.remove();
-        portalNode.current = null;
-      }
-    };
+    return () => { if (portalNode.current) { portalNode.current.remove(); portalNode.current = null; } };
   }, []);
 
   const u = URGENCY[result.urgency] || URGENCY.medium;
@@ -1082,13 +1655,10 @@ function PrintReport({ result, previews }) {
   const healthColor = health.color === "green" ? "#059669" : health.color === "yellow" ? "#d97706" : "#dc2626";
   const urgencyBadgeClass = `pt-badge pt-badge-${result.urgency || "medium"}`;
   const urgencyTextColor = result.urgency === "high" ? "#dc2626" : result.urgency === "medium" ? "#d97706" : "#059669";
-  const healthScorePct = ((health.score ?? 0) / 100) * 263.9;
 
   const content = (
     <>
-      {/* ── PAGE 1 — SUMMARY ── */}
       <div className="print-page" style={{ padding: "0 0 24pt", position: "relative" }}>
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12pt" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10pt" }}>
             <div style={{ width: "36pt", height: "36pt", borderRadius: "8pt", background: "#ea6500", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1106,8 +1676,6 @@ function PrintReport({ result, previews }) {
           </div>
         </div>
         <hr className="pt-rule-heavy" style={{ marginBottom: "12pt" }} />
-
-        {/* Urgency banner */}
         <div className={urgencyBadgeClass} style={{ marginBottom: "12pt" }}>
           <div style={{ width: "10pt", height: "10pt", borderRadius: "50%", background: urgencyTextColor, flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
@@ -1115,17 +1683,13 @@ function PrintReport({ result, previews }) {
             <span style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "9pt", color: "#444", marginLeft: "8pt" }}>{result.recommendation || "See full report for details."}</span>
           </div>
         </div>
-
-        {/* KPI grid — 3 columns */}
         <div className="pt-kpi-grid print-no-break" style={{ marginBottom: "10pt" }}>
-          {/* Health Score with SVG gauge */}
           <div className="pt-kpi">
             <p className="pt-label">OVERALL HEALTH</p>
             <div style={{ display: "flex", alignItems: "center", gap: "10pt" }}>
               <svg viewBox="0 0 60 60" style={{ width: "45pt", height: "45pt", transform: "rotate(-90deg)", flexShrink: 0 }}>
                 <circle cx="30" cy="30" r="25" fill="none" stroke="#f3f4f6" strokeWidth="5" />
-                <circle cx="30" cy="30" r="25" fill="none" stroke={healthColor} strokeWidth="5"
-                  strokeDasharray={`${(health.score ?? 0) / 100 * 157.1} 157.1`} strokeLinecap="round" />
+                <circle cx="30" cy="30" r="25" fill="none" stroke={healthColor} strokeWidth="5" strokeDasharray={`${(health.score ?? 0) / 100 * 157.1} 157.1`} strokeLinecap="round" />
               </svg>
               <div>
                 <p className="pt-value" style={{ color: healthColor, fontSize: "24pt" }}>{health.grade || "—"}</p>
@@ -1134,19 +1698,13 @@ function PrintReport({ result, previews }) {
               </div>
             </div>
           </div>
-
-          {/* Tread depth */}
           <div className="pt-kpi">
             <p className="pt-label">TREAD DEPTH</p>
             <p className="pt-value" style={{ color: depthBarColor }}>{depth.depth_mm ?? "—"}<span style={{ fontSize: "11pt", fontWeight: 400, color: "#666" }}> mm</span></p>
             <p className="pt-small" style={{ marginBottom: "5pt" }}>{depth.status || ""}</p>
-            <div className="pt-bar-track">
-              <div style={{ width: `${depthPct}%`, height: "100%", background: depthBarColor, borderRadius: "3pt" }} />
-            </div>
+            <div className="pt-bar-track"><div style={{ width: `${depthPct}%`, height: "100%", background: depthBarColor, borderRadius: "3pt" }} /></div>
             <p className="pt-small" style={{ marginTop: "4pt" }}>Min: 1.6 mm{depth.remaining_km != null ? ` · ~${depth.remaining_km.toLocaleString()} km left` : ""}</p>
           </div>
-
-          {/* Urgency */}
           <div className="pt-kpi">
             <p className="pt-label">URGENCY LEVEL</p>
             <p className="pt-value" style={{ fontSize: "16pt", color: urgencyTextColor }}>{u.label}</p>
@@ -1155,63 +1713,31 @@ function PrintReport({ result, previews }) {
             </p>
           </div>
         </div>
-
-        {/* Details — 4 columns */}
         <div className="pt-4col print-no-break" style={{ marginBottom: "10pt" }}>
-          <div className="pt-kpi-2">
-            <p className="pt-label">WEAR LEVEL</p>
-            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.urgency === "high" ? "#dc2626" : "#111", margin: "4pt 0 2pt" }}>{result.wear_level || "—"}</p>
-            {result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">WEAR PATTERN</p>
-            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.pattern || "—"}</p>
-            {result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">TYRE AGE / DOT</p>
-            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.tyre_age?.age_display || "Unknown"}</p>
-            <p className="pt-small">{result.tyre_age?.manufacture || ""}{!result.tyre_age?.dot_found ? " (DOT not detected)" : ""}</p>
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">SIDEWALL</p>
-            <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.sidewall && result.sidewall !== "None" ? "#dc2626" : "#059669", margin: "4pt 0 2pt" }}>{result.sidewall === "None" ? "No damage" : result.sidewall || "—"}</p>
-            <p className="pt-small">{result.sidewall && result.sidewall !== "None" ? "⚠ Inspect immediately" : "Visually clear"}</p>
-          </div>
+          <div className="pt-kpi-2"><p className="pt-label">WEAR LEVEL</p><p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.urgency === "high" ? "#dc2626" : "#111", margin: "4pt 0 2pt" }}>{result.wear_level || "—"}</p>{result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}</div>
+          <div className="pt-kpi-2"><p className="pt-label">WEAR PATTERN</p><p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.pattern || "—"}</p>{result.cause && <p className="pt-small" style={{ fontStyle: "italic" }}>{result.cause}</p>}</div>
+          <div className="pt-kpi-2"><p className="pt-label">TYRE AGE / DOT</p><p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: "#111", margin: "4pt 0 2pt" }}>{result.tyre_age?.age_display || "Unknown"}</p><p className="pt-small">{result.tyre_age?.manufacture || ""}{!result.tyre_age?.dot_found ? " (DOT not detected)" : ""}</p></div>
+          <div className="pt-kpi-2"><p className="pt-label">SIDEWALL</p><p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "11pt", color: result.sidewall && result.sidewall !== "None" ? "#dc2626" : "#059669", margin: "4pt 0 2pt" }}>{result.sidewall === "None" ? "No damage" : result.sidewall || "—"}</p><p className="pt-small">{result.sidewall && result.sidewall !== "None" ? "⚠ Inspect immediately" : "Visually clear"}</p></div>
         </div>
-
-        {/* Recommendation */}
         <div className="pt-reco print-no-break">
           <p className="pt-h3" style={{ color: "#ea580c", marginBottom: "5pt" }}>WORKSHOP RECOMMENDATION</p>
           <p className="pt-body">{result.recommendation || "Consult a qualified tyre technician for a full physical inspection."}</p>
         </div>
-
-        {/* Quality warnings */}
         {result.warnings?.length > 0 && (
           <div className="pt-warn print-no-break">
             <p className="pt-h3" style={{ color: "#b45309", marginBottom: "5pt" }}>AI QUALITY FLAGS</p>
             {result.warnings.map((w, i) => <p key={i} className="pt-small" style={{ margin: i > 0 ? "3pt 0 0" : 0 }}>• {w}</p>)}
           </div>
         )}
-
-        {/* Footer */}
-        <div className="pt-footer">
-          <span>STRADA AI Tyre Intelligence · {reportId}</span>
-          <span>Page 1 of 2</span>
-          <span>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
-        </div>
+        <div className="pt-footer"><span>STRADA AI Tyre Intelligence · {reportId}</span><span>Page 1 of 2</span><span>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span></div>
       </div>
 
-      {/* ── PAGE 2 — SCORE BREAKDOWN + IMAGES + CHECKLIST ── */}
       <div className="print-page print-break-before">
-        {/* Page 2 header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10pt" }}>
           <p className="pt-h2" style={{ margin: 0 }}>SCORE BREAKDOWN</p>
           <p className="pt-small">{reportId} · Page 2</p>
         </div>
         <hr className="pt-rule" style={{ marginBottom: "10pt" }} />
-
-        {/* Score breakdown */}
         <div className="print-no-break" style={{ marginBottom: "14pt" }}>
           {Object.keys(breakdown).length > 0 ? Object.entries(breakdown).map(([key, val]) => {
             const pct = ((val.score ?? 0) / (val.max ?? 100)) * 100;
@@ -1219,57 +1745,36 @@ function PrintReport({ result, previews }) {
             return (
               <div key={key} className="pt-score-row">
                 <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 700, fontSize: "9pt", color: "#333", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{key}</p>
-                <div style={{ flex: 1, height: "6pt", background: "#f3f4f6", borderRadius: "3pt", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: fc }} />
-                </div>
+                <div style={{ flex: 1, height: "6pt", background: "#f3f4f6", borderRadius: "3pt", overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: fc }} /></div>
                 <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "9pt", color: "#555", margin: 0, textAlign: "right" }}>{val.score ?? 0}/{val.max ?? 100}</p>
                 <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "8pt", color: "#999", margin: 0, textAlign: "right", fontStyle: "italic" }}>{val.label || ""}</p>
               </div>
             );
           }) : <p className="pt-small" style={{ margin: "0 0 14pt" }}>Score breakdown not available.</p>}
         </div>
-
-        {/* Two-col: Grad-CAM + Submitted images */}
         <div className="pt-2col print-no-break" style={{ marginBottom: "14pt" }}>
           <div>
             <p className="pt-h3" style={{ marginBottom: "6pt" }}>GRAD-CAM ATTENTION MAP</p>
-            {result.gradcam_image
-              ? <img src={`data:image/jpeg;base64,${result.gradcam_image}`} alt="Grad-CAM" className="pt-gradcam" />
-              : <div style={{ height: "80pt", background: "#f9fafb", border: "0.75pt dashed #ddd", borderRadius: "3pt", display: "flex", alignItems: "center", justifyContent: "center" }}><p className="pt-small">Not available</p></div>}
+            {result.gradcam_image ? <img src={`data:image/jpeg;base64,${result.gradcam_image}`} alt="Grad-CAM" className="pt-gradcam" /> : <div style={{ height: "80pt", background: "#f9fafb", border: "0.75pt dashed #ddd", borderRadius: "3pt", display: "flex", alignItems: "center", justifyContent: "center" }}><p className="pt-small">Not available</p></div>}
             <p className="pt-small" style={{ marginTop: "4pt", fontStyle: "italic" }}>Highlighted zones indicate regions driving the AI verdict.</p>
           </div>
           <div>
             <p className="pt-h3" style={{ marginBottom: "6pt" }}>SUBMITTED IMAGES</p>
             {previews?.length > 0 ? (
               <div style={{ display: "grid", gridTemplateColumns: previews.length > 3 ? "repeat(3,1fr)" : `repeat(${previews.length},1fr)`, gap: "5pt" }}>
-                {previews.map(({ label, url }) => (
-                  <div key={label} className="pt-img-cell">
-                    <img src={url} alt={label} style={{ width: "100%", height: "45pt", objectFit: "cover", borderRadius: "3pt", border: "0.5pt solid #e5e7eb", display: "block" }} />
-                    <p className="pt-img-label">{label}</p>
-                  </div>
-                ))}
+                {previews.map(({ label, url }) => (<div key={label} className="pt-img-cell"><img src={url} alt={label} style={{ width: "100%", height: "45pt", objectFit: "cover", borderRadius: "3pt", border: "0.5pt solid #e5e7eb", display: "block" }} /><p className="pt-img-label">{label}</p></div>))}
               </div>
             ) : <p className="pt-small">No images submitted.</p>}
           </div>
         </div>
-
-        {/* Workshop action checklist */}
         <div className="pt-checklist print-no-break">
           <p className="pt-h3" style={{ marginBottom: "8pt" }}>WORKSHOP ACTION CHECKLIST</p>
           {[
-            result.urgency === "high"
-              ? "⚠ IMMEDIATE: Do not drive — replace tyre before vehicle moves"
-              : result.urgency === "medium"
-              ? "Schedule tyre replacement within 2 weeks or 1,000 km"
-              : "Monitor condition — re-inspect at next scheduled service",
+            result.urgency === "high" ? "⚠ IMMEDIATE: Do not drive — replace tyre before vehicle moves" : result.urgency === "medium" ? "Schedule tyre replacement within 2 weeks or 1,000 km" : "Monitor condition — re-inspect at next scheduled service",
             `Verify tread depth: measured ${depth.depth_mm ?? "—"} mm (legal minimum: 1.6 mm)`,
-            result.sidewall && result.sidewall !== "None"
-              ? `⚠ Sidewall issue detected: "${result.sidewall}" — check for structural integrity immediately`
-              : "Sidewall: no damage detected — verify physically at inspection",
+            result.sidewall && result.sidewall !== "None" ? `⚠ Sidewall issue detected: "${result.sidewall}" — check for structural integrity immediately` : "Sidewall: no damage detected — verify physically at inspection",
             `Wear pattern: "${result.pattern || "—"}" — ${result.cause || "inspect alignment, inflation, and suspension"}`,
-            result.tyre_age?.dot_found
-              ? `DOT code confirmed: ${result.tyre_age.age_display} — ${result.tyre_age.manufacture || "verify age"}`
-              : "DOT code not detected by AI — locate and read physical DOT code on sidewall",
+            result.tyre_age?.dot_found ? `DOT code confirmed: ${result.tyre_age.age_display} — ${result.tyre_age.manufacture || "verify age"}` : "DOT code not detected by AI — locate and read physical DOT code on sidewall",
             "Cross-check opposite tyre for balanced wear distribution",
             "Record findings in vehicle maintenance log",
           ].map((item, i) => (
@@ -1279,19 +1784,12 @@ function PrintReport({ result, previews }) {
             </div>
           ))}
         </div>
-
-        {/* Disclaimer */}
         <div style={{ marginTop: "12pt", padding: "8pt 12pt", background: "#f9fafb", border: "0.75pt solid #e5e7eb", borderRadius: "4pt" }}>
           <p style={{ fontFamily: "Helvetica Neue, sans-serif", fontSize: "7.5pt", color: "#999", margin: 0, lineHeight: 1.6 }}>
-            <strong style={{ color: "#666" }}>DISCLAIMER:</strong> This report is generated by the STRADA AI Tyre Intelligence system and is intended as a supplementary diagnostic aid only. It does not constitute a professional tyre inspection or safety certification. Always have tyres inspected by a qualified tyre technician before making safety-critical decisions. Report ID: {reportId}
+            <strong style={{ color: "#666" }}>DISCLAIMER:</strong> This report is generated by the STRADA AI Tyre Intelligence system and is intended as a supplementary diagnostic aid only. Report ID: {reportId}
           </p>
         </div>
-
-        <div className="pt-footer">
-          <span>STRADA AI Tyre Intelligence</span>
-          <span>Page 2 of 2</span>
-          <span>{now}</span>
-        </div>
+        <div className="pt-footer"><span>STRADA AI Tyre Intelligence</span><span>Page 2 of 2</span><span>{now}</span></div>
       </div>
     </>
   );
@@ -1315,10 +1813,7 @@ function ReportPage({ result, previews, onClose }) {
   const handleTouchMove = e => {
     if (touchStartY.current === null) return;
     const dy = e.touches[0].clientY - touchStartY.current;
-    if (dy > 0 && overlayRef.current?.scrollTop === 0) {
-      overlayRef.current.style.transform = `translateY(${Math.min(dy * 0.4, 80)}px)`;
-      overlayRef.current.style.transition = "none";
-    }
+    if (dy > 0 && overlayRef.current?.scrollTop === 0) { overlayRef.current.style.transform = `translateY(${Math.min(dy * 0.4, 80)}px)`; overlayRef.current.style.transition = "none"; }
   };
   const handleTouchEnd = e => {
     if (touchStartY.current === null) return;
@@ -1334,10 +1829,7 @@ function ReportPage({ result, previews, onClose }) {
     <div ref={overlayRef} id="strada-report-overlay"
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
       style={{ position: "fixed", inset: 0, zIndex: 800, overflowY: "auto", background: T.bg, animation: "fadeIn .3s ease", WebkitOverflowScrolling: "touch", transition: "transform .3s cubic-bezier(.16,1,.3,1)" }}>
-
-      {/* React Portal print template */}
       <PrintReport result={resultWithAge} previews={previews} />
-
       <div className="no-print" style={{ maxWidth: 760, margin: "0 auto", padding: `clamp(20px,5vh,64px) clamp(14px,4vw,28px) ${isMobile ? "90px" : "48px"}` }}>
         {isMobile && <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}><div style={{ width: 36, height: 4, borderRadius: 2, background: T.border }} /></div>}
         <div className="report-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32, flexWrap: "wrap", gap: 14 }}>
@@ -1453,7 +1945,7 @@ function ResultCard({ result, onViewReport }) {
 }
 
 // ─── DIAGNOSE PAGE ────────────────────────────────────────────────────────────
-function DiagnosePage({ isMobile }) {
+function DiagnosePage({ isMobile, onSlickEgg }) {
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -1484,6 +1976,11 @@ function DiagnosePage({ isMobile }) {
       if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
       setResult(data);
       haptic("heavy");
+      // 🥚 Trigger Racing Slick Easter egg for critically worn tyres
+      const wearLow = typeof data.wear_level === "string" && data.wear_level.toLowerCase().includes("bald");
+      if (data.urgency === "high" || wearLow) {
+        setTimeout(() => onSlickEgg?.(), 800);
+      }
     } catch (err) {
       if (err.name === "AbortError") setError("Request timed out. Check that your Flask server is running.");
       else setError(err.message || "Failed to reach API. Is Flask running on port 5000?");
@@ -1520,29 +2017,86 @@ function DiagnosePage({ isMobile }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [page, setPage] = useState("landing");
   const [isMobile, setIsMobile] = useState(false);
-  // Light mode is now the default
   const [theme, setTheme] = useState("light");
 
-  useEffect(() => { const check = () => setIsMobile(window.innerWidth <= 640); check(); window.addEventListener("resize", check); return () => window.removeEventListener("resize", check); }, []);
-  useEffect(() => { document.body.className = theme === "dark" ? "dark-mode" : "light-mode"; }, [theme]);
+  // ── Splash Screen State
+  const [splashDone, setSplashDone] = useState(false);
+
+  // ── Easter Egg State
+  const [showRollingTyre, setShowRollingTyre] = useState(false);
+  const [showSlickPopup, setShowSlickPopup] = useState(false);
+  const [showSpinOut, setShowSpinOut] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    document.body.className = theme === "dark" ? "dark-mode" : "light-mode";
+  }, [theme]);
 
   const toggleTheme = useCallback(() => setTheme(t => t === "dark" ? "light" : "dark"), []);
   const go = useCallback((p) => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
   const T = theme === "dark" ? DARK : LIGHT;
 
+  // ── Easter egg handlers
+  const handleToggleEgg = useCallback((type) => {
+    if (type === "spinout") {
+      haptic("heavy");
+      setShowSpinOut(true);
+    }
+  }, []);
+
+  const handleRadarTripleClick = useCallback(() => {
+    if (!showRollingTyre) {
+      haptic("heavy");
+      setShowRollingTyre(true);
+    }
+  }, [showRollingTyre]);
+
+  const handleSlickEgg = useCallback(() => {
+    setShowSlickPopup(true);
+  }, []);
+
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
-      <div style={{ minHeight: "100dvh", background: T.bg, color: T.text, position: "relative", fontFamily: "'JetBrains Mono', monospace" }}>
+
+      {/* ── Splash Screen — shown until boot sequence completes */}
+      {!splashDone && <SplashScreen onComplete={() => setSplashDone(true)} />}
+
+      {/* ── Easter Egg: 8-bit tyre rolling across the screen */}
+      {showRollingTyre && <RollingTyre onDone={() => setShowRollingTyre(false)} />}
+
+      {/* ── Easter Egg: Racing Slick popup for bald tyres */}
+      {showSlickPopup && <RacingSlickPopup onClose={() => setShowSlickPopup(false)} />}
+
+      {/* ── Easter Egg: Spin-out skid marks on rapid theme toggle */}
+      {showSpinOut && <SpinOutOverlay onDone={() => setShowSpinOut(false)} />}
+
+      {/* ── Main App (fades in after splash) */}
+      <div style={{
+        minHeight: "100dvh",
+        background: T.bg, color: T.text,
+        position: "relative",
+        fontFamily: "'JetBrains Mono', monospace",
+        opacity: splashDone ? 1 : 0,
+        transition: "opacity 0.4s ease",
+      }}>
         <StaticBg />
-        <ResponsiveNav page={page} setPage={go} />
+        <ResponsiveNav page={page} setPage={go} onToggleEgg={handleToggleEgg} />
         <div style={{ position: "relative", zIndex: 2 }}>
-          {page === "landing" && <LandingPage setPage={go} />}
-          {page === "diagnose" && <DiagnosePage isMobile={isMobile} />}
+          {page === "landing" && <LandingPage setPage={go} onRadarTripleClick={handleRadarTripleClick} />}
+          {page === "diagnose" && <DiagnosePage isMobile={isMobile} onSlickEgg={handleSlickEgg} />}
           {page === "about" && <AboutPage />}
         </div>
         {!isMobile && (
