@@ -33,7 +33,7 @@ const LIGHT = {
   scanline: "rgba(234,101,0,0.025)",
   heroBg: "linear-gradient(180deg, rgba(250,247,244,0) 0%, #faf7f4 100%)",
 };
-function useT() { const { theme } = useTheme(); return theme === "dark" ? DARK : LIGHT; }
+function useT() { return DARK; }
 function useG() {
   const T = useT();
   return {
@@ -184,7 +184,7 @@ function BuyCard({ img, title, n, children }) {
 function CrossSection() {
   const T = useT(), { theme } = useTheme();
   const acc = T.accent;
-  const isDark = theme === "dark";
+ const isDark = true;
   const t1 = isDark ? "#2c2c2c" : "#e2d8cc", t2 = isDark ? "#1f1f1f" : "#d4c8b8", t3 = isDark ? "#171717" : "#c4b8a8";
   const rim = isDark ? "#3a3a3a" : "#c0b0a0", hub = isDark ? "#4a4a4a" : "#a09080";
   return (
@@ -237,7 +237,7 @@ export default function InfoPage({ setPage }) {
     { id: "buying",  label: "Buy Smart",  icon: "◈" },
   ];
 
-  const isDark = theme === "dark";
+ const isDark = true;
 
   return (
     <div style={{ minHeight: "100dvh", background: T.bg, color: T.text, fontFamily: "'JetBrains Mono',monospace" }}>

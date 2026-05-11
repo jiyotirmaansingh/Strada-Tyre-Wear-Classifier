@@ -3,14 +3,12 @@ import { createPortal } from "react-dom";
 import InfoPage from "./components/Info";
 
 // ─── THEME CONTEXT ────────────────────────────────────────────────────────────
-export const ThemeContext = createContext({ theme: "light", toggleTheme: () => {} });
+export const ThemeContext = createContext({ theme: "dark", toggleTheme: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
 // ─── SLOTS ────────────────────────────────────────────────────────────────────
-// Primary hero slot
 const PRIMARY_SLOT = { id: "tread_closeup", label: "Primary Tyre Photo", hint: "Tread close-up gives the best AI result" };
 
-// Optional extra angle slots
 const OPTIONAL_SLOTS = [
   { id: "left_profile",     label: "Left Profile",      icon: "◧", hint: "Side view, left"  },
   { id: "right_profile",    label: "Right Profile",     icon: "◨", hint: "Side view, right" },
@@ -18,7 +16,6 @@ const OPTIONAL_SLOTS = [
   { id: "cracks",           label: "Cracks / Sidewall", icon: "⌁", hint: "Sidewall scan"    },
 ];
 
-// All slots in original order — keeps FormData keys intact for Flask
 const SLOTS = [
   { id: "left_profile",     label: "Left Profile",      icon: "◧", hint: "Side view, left"       },
   { id: "right_profile",    label: "Right Profile",     icon: "◨", hint: "Side view, right"      },
@@ -34,7 +31,7 @@ const URGENCY = {
 };
 const SVG_C = { green: "#10b981", yellow: "#f59e0b", orange: "#f97316", red: "#ef4444", gray: "#52525b" };
 
-// ─── THEME TOKENS ─────────────────────────────────────────────────────────────
+// ─── DARK THEME ONLY ──────────────────────────────────────────────────────────
 const DARK = {
   bg: "#080808", surface: "rgba(22,22,22,0.98)", panel: "rgba(18,18,18,0.96)",
   ghost: "rgba(255,255,255,0.025)", text: "#ffffff", textSub: "rgba(255,255,255,0.38)",
@@ -48,20 +45,8 @@ const DARK = {
   gridLine: "rgba(255,255,255,0.011)",
   orbBg: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(249,115,22,0.09) 0%, transparent 70%)",
 };
-const LIGHT = {
-  bg: "#faf7f4", surface: "rgba(255,252,249,0.99)", panel: "rgba(255,252,249,0.97)",
-  ghost: "rgba(0,0,0,0.03)", text: "#1a1008", textSub: "rgba(26,16,8,0.52)",
-  textMuted: "rgba(26,16,8,0.38)", textFaint: "rgba(26,16,8,0.2)",
-  border: "rgba(0,0,0,0.07)", borderFaint: "rgba(0,0,0,0.04)",
-  accent: "#ea6500", accentMid: "#f97316", accentDark: "#c2410c",
-  cardBorder: "rgba(0,0,0,0.07)",
-  cardShadow: "0 4px 24px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9)",
-  panelBorder: "rgba(0,0,0,0.08)",
-  panelShadow: "0 0 0 0.5px rgba(0,0,0,0.04) inset, 0 8px 40px rgba(0,0,0,0.08)",
-  gridLine: "rgba(0,0,0,0.018)",
-  orbBg: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(249,115,22,0.07) 0%, transparent 70%)",
-};
-function useTokens() { const { theme } = useTheme(); return theme === "dark" ? DARK : LIGHT; }
+
+function useTokens() { return DARK; }
 function useG() {
   const T = useTokens();
   return {
@@ -179,8 +164,6 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
 .strada-reveal{opacity:0;transform:translateY(30px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
 .strada-reveal.visible{opacity:1;transform:translateY(0)}
 .shimmer-text{background:linear-gradient(90deg,#f97316 0%,#fb923c 20%,#fff 50%,#fb923c 80%,#f97316 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
-.shimmer-text-light{background:linear-gradient(90deg,#ea6500 0%,#f97316 20%,#1a1008 50%,#f97316 80%,#ea6500 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 5s linear infinite}
-@media(prefers-reduced-motion:reduce){.shimmer-text,.shimmer-text-light{animation:none}.uuc-hero-drag{animation:none}}
 .lift-card{transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s,border-color .3s}
 .lift-card:hover{transform:translateY(-5px) scale(1.008);box-shadow:0 28px 64px rgba(0,0,0,.25),0 0 0 1px rgba(249,115,22,.18)!important}
 .mag-btn{position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s}
@@ -211,13 +194,12 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased;font-family:'JetBrains
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
 .pipeline-steps{display:flex;gap:0;position:relative}
-body.light-mode{background:#faf7f4;color:#1a1008}
 body.dark-mode{background:#080808;color:#fff}
 @media(max-width:768px){
   *{-webkit-tap-highlight-color:transparent}
   .strada-reveal{opacity:0;transition:opacity .5s ease}
   .strada-reveal.visible{opacity:1;transform:none}
-  .shimmer-text,.shimmer-text-light{animation:none;background:linear-gradient(90deg,#f97316,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .shimmer-text{animation:none;background:linear-gradient(90deg,#f97316,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
   .lift-card{transition:none}
   .mag-btn{transition:transform .12s cubic-bezier(.16,1,.3,1),opacity .12s}
   .mag-btn:active{transform:scale(0.96)!important;opacity:.92}
@@ -246,6 +228,7 @@ body.dark-mode{background:#080808;color:#fff}
   .report-header-title{font-size:36px!important}
   .report-actions{width:100%!important;justify-content:stretch!important}
   .report-actions button{flex:1!important}
+  .diagnose-btn-row{flex-direction:column!important}
 }
 @media(max-width:480px){
   .hero-title{font-size:clamp(40px,13.5vw,78px)!important}
@@ -253,29 +236,19 @@ body.dark-mode{background:#080808;color:#fff}
   .grid3{grid-template-columns:1fr!important}
 }
 
-/* ════════════════════════════════════════════════════════════
-   PRINT STYLES — always forces white / black regardless of
-   whether the screen is in dark mode or light mode.
-════════════════════════════════════════════════════════════ */
 @media print {
   *,*::before,*::after{
     -webkit-print-color-adjust:exact!important;
     print-color-adjust:exact!important;
     color-scheme:light!important;
   }
-
-  /* Hide every body child except the print portal */
   body>*:not(#strada-print-portal){display:none!important;visibility:hidden!important}
-
-  /* Make the portal visible and in-flow */
   #strada-print-portal{
     display:block!important;
     visibility:visible!important;
     position:static!important;
     left:auto!important;top:auto!important;
   }
-
-  /* Force white background / dark text on html + body, overriding dark-mode classes */
   html,body{
     background:#ffffff!important;
     color:#111111!important;
@@ -284,28 +257,19 @@ body.dark-mode{background:#080808;color:#fff}
     -webkit-filter:none!important;
     filter:none!important;
   }
-
-  /* Kill any nav, sticky headers, overlays, Easter eggs */
   nav,.no-print,
   [class*="strada-orb"],[class*="splash"],
   #strada-report-overlay{display:none!important}
-
   @page{size:A4;margin:15mm 14mm 20mm}
   @page:first{margin-top:15mm}
-
-  /* Page breaks */
   .print-page{page-break-after:always;break-after:always}
   .print-page:last-child{page-break-after:avoid;break-after:avoid}
   .print-no-break{page-break-inside:avoid!important;break-inside:avoid!important;display:block;overflow:visible}
   .print-break-before{page-break-before:always;break-before:always}
-
-  /* Keep KPI grids and images from splitting across pages */
   .pt-kpi-grid,.pt-kpi,.pt-kpi-2,.pt-4col,.pt-2col,
   .pt-reco,.pt-checklist,.pt-warn,.pt-score-row,.pt-images-grid{
     page-break-inside:avoid!important;break-inside:avoid!important
   }
-
-  /* Typography */
   .pt-h1{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:26pt;letter-spacing:-0.04em;color:#111!important;margin:0}
   .pt-h2{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:800;font-size:14pt;color:#111!important;margin:0 0 8pt}
   .pt-h3{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:700;font-size:9pt;color:#444!important;margin:0 0 4pt;text-transform:uppercase;letter-spacing:0.08em}
@@ -318,48 +282,33 @@ body.dark-mode{background:#080808;color:#fff}
   .pt-rule-heavy{border:none;border-top:2pt solid #111;margin:10pt 0}
   .pt-green{color:#059669!important}.pt-yellow{color:#d97706!important}
   .pt-red{color:#dc2626!important}.pt-orange{color:#ea580c!important}.pt-muted{color:#888!important}
-
-  /* Urgency badges */
   .pt-badge{display:flex;align-items:center;gap:8pt;padding:8pt 12pt;border-radius:4pt;margin-bottom:12pt}
   .pt-badge-high{background:#fff0f0!important;border:1.5pt solid #fca5a5!important}
   .pt-badge-medium{background:#fffbeb!important;border:1.5pt solid #fde68a!important}
   .pt-badge-low{background:#f0fdf4!important;border:1.5pt solid #6ee7b7!important}
-
-  /* KPI grids */
   .pt-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:10pt}
   .pt-kpi{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
   .pt-kpi-2{border:0.75pt solid #e5e7eb!important;border-radius:4pt;padding:10pt 12pt;background:#fafafa!important}
   .pt-2col{display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:10pt}
   .pt-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:6pt;margin-bottom:10pt}
-
-  /* Bars */
   .pt-bar-track{height:5pt;background:#f3f4f6!important;border-radius:3pt;overflow:hidden;margin-top:4pt}
   .pt-bar-fill-green{height:100%;background:#059669!important;border-radius:3pt}
   .pt-bar-fill-yellow{height:100%;background:#d97706!important;border-radius:3pt}
   .pt-bar-fill-red{height:100%;background:#dc2626!important;border-radius:3pt}
-
-  /* Score table */
   .pt-score-table{width:100%;border-collapse:collapse;margin-bottom:10pt}
   .pt-score-row{display:grid;grid-template-columns:130pt 1fr 40pt 60pt;align-items:center;gap:8pt;padding:5pt 0;border-bottom:0.5pt solid #f0f0f0!important}
   .pt-score-row:last-child{border-bottom:none!important}
-
-  /* Callout boxes */
   .pt-checklist{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;border-radius:0 4pt 4pt 0;padding:10pt 14pt;margin-bottom:10pt;background:#fff!important}
   .pt-reco{border:0.75pt solid #e5e7eb!important;border-left:3pt solid #ea580c!important;padding:10pt 14pt;border-radius:0 4pt 4pt 0;margin-bottom:10pt;background:#fff!important}
   .pt-warn{background:#fffbeb!important;border:0.75pt solid #fcd34d!important;border-radius:4pt;padding:8pt 12pt;margin-bottom:10pt}
-
-  /* Images */
   .pt-images-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6pt;margin-bottom:10pt}
   .pt-img-cell{text-align:center}
   .pt-img-cell img{width:100%;height:50pt;object-fit:cover;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
   .pt-img-label{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:6pt;color:#aaa!important;text-transform:uppercase;letter-spacing:0.06em;margin-top:3pt}
   .pt-gradcam{width:100%;max-height:120pt;object-fit:contain;border-radius:3pt;border:0.5pt solid #e5e7eb!important;display:block}
   .pt-gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4pt}
-
-  /* Fixed footer */
   .pt-footer{position:fixed;bottom:0;left:0;right:0;padding:5pt 14mm;border-top:0.5pt solid #ddd!important;display:flex;justify-content:space-between;align-items:center;background:#fff!important}
   .pt-footer span{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:7pt;color:#aaa!important}
-
   .no-print{display:none!important}
 }
 `;
@@ -532,32 +481,6 @@ function SpinOutOverlay({ onDone }) {
   );
 }
 
-// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
-function ThemeToggle({ onToggleEgg }) {
-  const { theme, toggleTheme } = useTheme();
-  const T = useTokens(), isDark = theme === "dark";
-  const ripple = useRipple(), toggleRef = useRef(null), toggleTimestamps = useRef([]);
-  const handleToggle = (e) => {
-    haptic("light"); ripple(e);
-    const now = Date.now();
-    toggleTimestamps.current = [...toggleTimestamps.current, now].filter(t => now - t < 3000);
-    if (toggleTimestamps.current.length >= 4) { toggleTimestamps.current = []; onToggleEgg?.("spinout"); return; }
-    if (document.startViewTransition) {
-      const btn = toggleRef.current;
-      if (btn) { const rect = btn.getBoundingClientRect(); document.documentElement.style.setProperty("--radar-x",`${((rect.left+rect.width/2)/window.innerWidth)*100}%`); document.documentElement.style.setProperty("--radar-y",`${((rect.top+rect.height/2)/window.innerHeight)*100}%`); }
-      document.startViewTransition(() => { toggleTheme(); });
-    } else { toggleTheme(); }
-  };
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-      {isDark && <span style={{ fontSize:9, color:T.accent, letterSpacing:"0.1em", background:`${T.accent}18`, border:`1px solid ${T.accent}40`, padding:"3px 8px", borderRadius:4, fontFamily:"'JetBrains Mono',monospace" }}>DARK</span>}
-      <button ref={toggleRef} onClick={handleToggle} title={isDark?"Switch to light mode":"Switch to dark mode"} style={{ width:40, height:22, borderRadius:11, border:`1px solid ${isDark?"rgba(249,115,22,0.3)":"rgba(234,101,0,0.3)"}`, background:isDark?"rgba(249,115,22,0.1)":"rgba(234,101,0,0.12)", cursor:"pointer", position:"relative", transition:"background .3s, border .3s", flexShrink:0, overflow:"hidden" }} aria-label="Toggle theme">
-        <div style={{ position:"absolute", top:2, left:isDark?20:2, width:16, height:16, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#c2410c)", transition:"left .25s cubic-bezier(.16,1,.3,1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8 }}>{isDark?"☽":"☀"}</div>
-      </button>
-    </div>
-  );
-}
-
 // ─── STATIC BG ────────────────────────────────────────────────────────────────
 function StaticBg() {
   const T = useTokens();
@@ -614,19 +537,19 @@ function DiagnosticHero({ onRadarTripleClick }) {
     if (clickTimestamps.current.length>=3) { clickTimestamps.current=[]; setCenterGlowing(true); setTimeout(()=>setCenterGlowing(false),1800); onRadarTripleClick?.(); }
   };
   const rad=(scanAngle*Math.PI/180), sweepX=150+120*Math.cos(rad), sweepY=150+120*Math.sin(rad);
-  const rings=[40,70,100,125], accent=T.accent, isLight=T===LIGHT;
+  const rings=[40,70,100,125], accent=T.accent;
   return (
     <div ref={containerRef} className="hero-radar" style={{ position:"relative", width:"min(340px,82vw)", height:"min(340px,82vw)", margin:"0 auto" }}>
       <svg viewBox="0 0 300 300" style={{ width:"100%", height:"100%", overflow:"visible" }}>
         <defs>
-          <radialGradient id="radarBg" cx="50%" cy="50%"><stop offset="0%" stopColor={isLight?"rgba(255,250,245,0.97)":"rgba(20,20,20,0.95)"} /><stop offset="100%" stopColor={isLight?"rgba(250,247,244,0.99)":"rgba(8,8,8,0.98)"} /></radialGradient>
+          <radialGradient id="radarBg" cx="50%" cy="50%"><stop offset="0%" stopColor="rgba(20,20,20,0.95)" /><stop offset="100%" stopColor="rgba(8,8,8,0.98)" /></radialGradient>
           <filter id="glow"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           <filter id="strongGlow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           <clipPath id="radarClip"><circle cx="150" cy="150" r="128" /></clipPath>
         </defs>
         <circle cx="150" cy="150" r="130" fill="url(#radarBg)" stroke={`${accent}33`} strokeWidth="1.5" />
         {rings.map((r,i)=><circle key={i} cx="150" cy="150" r={r} fill="none" stroke={`${accent}${i===rings.length-1?"22":"11"}`} strokeWidth="0.8" strokeDasharray={i===rings.length-1?"none":"4 4"} />)}
-        {[0,45,90,135].map(a=>{const aR=a*Math.PI/180;return <line key={a} x1={150+8*Math.cos(aR)} y1={150+8*Math.sin(aR)} x2={150+125*Math.cos(aR)} y2={150+125*Math.sin(aR)} stroke={isLight?"rgba(0,0,0,0.06)":"rgba(255,255,255,0.05)"} strokeWidth="0.6" />;} )}
+        {[0,45,90,135].map(a=>{const aR=a*Math.PI/180;return <line key={a} x1={150+8*Math.cos(aR)} y1={150+8*Math.sin(aR)} x2={150+125*Math.cos(aR)} y2={150+125*Math.sin(aR)} stroke="rgba(255,255,255,0.05)" strokeWidth="0.6" />;} )}
         <g clipPath="url(#radarClip)">
           <path d={`M 150 150 L ${150+125*Math.cos(rad-0.52)} ${150+125*Math.sin(rad-0.52)} A 125 125 0 0 1 ${sweepX} ${sweepY} Z`} fill={`${accent}11`} />
           <path d={`M 150 150 L ${150+125*Math.cos(rad-0.22)} ${150+125*Math.sin(rad-0.22)} A 125 125 0 0 1 ${sweepX} ${sweepY} Z`} fill={`${accent}1e`} />
@@ -635,7 +558,7 @@ function DiagnosticHero({ onRadarTripleClick }) {
         {pings.map(p=><g key={p.id}><circle cx={p.x} cy={p.y} r="3.5" fill={accent} opacity="0.9" filter="url(#strongGlow)" />{!isMobile&&<circle cx={p.x} cy={p.y} r="7" fill="none" stroke={`${accent}66`} strokeWidth="1" style={{animation:"radarPing 1.2s ease-out forwards"}} />}</g>)}
         <g transform="translate(150,150)">
           <ellipse cx="0" cy="0" rx="28" ry="28" fill="none" stroke={`${accent}80`} strokeWidth="6" />
-          <ellipse cx="0" cy="0" rx="16" ry="16" fill={isLight?"rgba(250,247,244,0.9)":"rgba(14,14,14,0.9)"} stroke={`${accent}59`} strokeWidth="2" />
+          <ellipse cx="0" cy="0" rx="16" ry="16" fill="rgba(14,14,14,0.9)" stroke={`${accent}59`} strokeWidth="2" />
           <circle cx="0" cy="0" r="10" fill="transparent" style={{cursor:"pointer"}} onClick={handleCenterClick} className={centerGlowing?"radar-center-egg":""} />
           <circle cx="0" cy="0" r="4" fill={accent} opacity="0.9" style={centerGlowing?{filter:`drop-shadow(0 0 8px ${accent})`}:{}} />
           {[0,60,120,180,240,300].map(a=>{const aR=a*Math.PI/180;return <line key={a} x1={5*Math.cos(aR)} y1={5*Math.sin(aR)} x2={14*Math.cos(aR)} y2={14*Math.sin(aR)} stroke={`${accent}99`} strokeWidth="1.5" strokeLinecap="round" />;} )}
@@ -721,7 +644,7 @@ function ShopLocator() {
         <p style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:T.text,margin:0 }}>{shops.length>0?`${shops.length} shops found`:"No shops found nearby"}</p>
         <div style={{ display:"flex",gap:6 }}>{RADIUS_OPTIONS.map(km=><button key={km} onClick={e=>{haptic("light");ripple(e);setRadius(km);}} style={{ padding:"6px 12px",borderRadius:20,fontSize:10,letterSpacing:"0.08em",cursor:"pointer",transition:"all .2s",background:radius===km?`${T.accent}33`:T.ghost,border:radius===km?`1px solid ${T.accent}80`:`1px solid ${T.border}`,color:radius===km?T.accent:T.textMuted,position:"relative",overflow:"hidden" }}>{km} km</button>)}</div>
       </div>
-      <div style={{ width:"100%",height:260,borderRadius:14,overflow:"hidden",border:`1px solid ${T.border}`,marginBottom:14,background:T===LIGHT?"#e8e4e0":"#111",position:"relative",zIndex:1 }}>
+      <div style={{ width:"100%",height:260,borderRadius:14,overflow:"hidden",border:`1px solid ${T.border}`,marginBottom:14,background:"#111",position:"relative",zIndex:1 }}>
         <div ref={mapContainerRef} style={{ width:"100%",height:"100%" }} />
       </div>
       {shops.length===0&&<div style={{ textAlign:"center",padding:"24px 0",color:T.textMuted,fontSize:12 }}>No tyre shops found within {radius} km. Try a larger radius.</div>}
@@ -779,7 +702,7 @@ function haversine(lat1,lon1,lat2,lon2) {
 }
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-function ResponsiveNav({ page, setPage, onToggleEgg }) {
+function ResponsiveNav({ page, setPage }) {
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const G=useG(),T=useTokens(),ripple=useRipple();
@@ -802,11 +725,9 @@ function ResponsiveNav({ page, setPage, onToggleEgg }) {
               {[["diagnose","DIAGNOSE"],["info","TYRE 101"],["about","HOW IT WORKS"]].map(([p,l])=>(
                 <button key={p} onClick={e=>{ripple(e);go(p);}} style={{ background:page===p?`${T.accent}1e`:"transparent",border:page===p?`1px solid ${T.accent}4d`:"1px solid transparent",color:page===p?T.accent:T.textMuted,fontSize:10,letterSpacing:"0.12em",padding:"7px 14px",borderRadius:8,cursor:"pointer",transition:"all .25s",position:"relative",overflow:"hidden" }}>{l}</button>
               ))}
-              <ThemeToggle onToggleEgg={onToggleEgg} />
               <button onClick={e=>{haptic("medium");ripple(e);go("diagnose");}} className="mag-btn" style={{ marginLeft:8,background:`linear-gradient(135deg,${T.accentMid},${T.accentDark})`,border:"none",color:"white",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:"0.08em",padding:"8px 18px",borderRadius:8,cursor:"pointer",boxShadow:"0 0 18px rgba(249,115,22,0.35)" }}>ANALYSE →</button>
             </div>
           )}
-          {isMobile&&<ThemeToggle onToggleEgg={onToggleEgg} />}
         </div>
       </nav>
       {isMobile&&(
@@ -827,7 +748,7 @@ function ResponsiveNav({ page, setPage, onToggleEgg }) {
 // ─── LANDING PAGE ─────────────────────────────────────────────────────────────
 function LandingPage({ setPage, onRadarTripleClick }) {
   useReveal();
-  const G=useG(),T=useTokens(),{theme}=useTheme(),ripple=useRipple();
+  const G=useG(),T=useTokens(),ripple=useRipple();
   const features=useMemo(()=>[
     {icon:"◎",n:"01",title:"Wear Classification",desc:"EfficientNet-B3 classifies wear across 5 levels — New to Bald — with sub-millimetre pattern sensitivity."},
     {icon:"▦",n:"02",title:"Tread Depth Estimation",desc:"Computer vision estimates remaining depth in mm and predicts remaining kilometres before legal minimum."},
@@ -845,7 +766,7 @@ function LandingPage({ setPage, onRadarTripleClick }) {
           <span style={{ background:`${T.accent}24`,border:`1px solid ${T.accent}4d`,color:T.accent,fontSize:9,letterSpacing:"0.1em",padding:"2px 8px",borderRadius:4 }}>BETA</span>
         </div>
         <div className="hero-title-wrap">
-          <h1 className={`hero-title ${theme==="dark"?"shimmer-text":"shimmer-text-light"}`} style={{ fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:"clamp(72px,14vw,168px)",lineHeight:0.87,letterSpacing:"-0.03em",margin:"0 0 24px" }}>STRADA</h1>
+          <h1 className="hero-title shimmer-text" style={{ fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:"clamp(72px,14vw,168px)",lineHeight:0.87,letterSpacing:"-0.03em",margin:"0 0 24px" }}>STRADA</h1>
         </div>
         <p className="hero-desc hero-desc-wrap" style={{ fontSize:"clamp(12px,1.5vw,16px)",color:T.textSub,maxWidth:480,margin:"0 auto 44px",lineHeight:1.8,padding:"0 8px" }}>Upload tyre photos. Get a full AI diagnostic report in seconds — wear level, tread depth, pattern analysis, and explainable heatmaps.</p>
         <div className="hero-buttons hero-buttons-wrap" style={{ display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:480 }}>
@@ -935,10 +856,11 @@ function AboutPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ─── UNIFIED UPLOAD CARD — Single-Photo-First UX ─────────────────────────────
+// ─── UNIFIED UPLOAD CARD ──────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Hero zone — the big primary upload area
+// Hero zone — primary upload area
+// FIX: removed capture="environment" so it opens gallery/file picker on mobile
 function HeroZone({ file, onUpload, onRemove, T }) {
   const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -970,17 +892,14 @@ function HeroZone({ file, onUpload, onRemove, T }) {
         <>
           <img src={preview} alt="Primary tyre photo" style={{ width:"100%",height:"100%",objectFit:"cover",display:"block",filter:hovered?"brightness(0.5)":"brightness(0.82)",transition:"filter .3s" }} />
           <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.7) 0%,rgba(0,0,0,0) 55%)" }} />
-          {/* ✓ badge */}
           <div className="uuc-check-pop" style={{ position:"absolute",top:12,left:12,background:"rgba(16,185,129,0.92)",borderRadius:7,padding:"4px 10px",display:"flex",alignItems:"center",gap:5 }}>
             <span style={{ color:"#fff",fontSize:10 }}>✓</span>
             <span style={{ color:"#fff",fontSize:9,letterSpacing:"0.08em",fontFamily:"'JetBrains Mono',monospace" }}>PRIMARY UPLOADED</span>
           </div>
-          {/* Filename */}
           <div style={{ position:"absolute",bottom:14,left:16,right:90 }}>
             <p style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,color:"#fff",margin:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{file.name}</p>
             <p style={{ fontSize:9,color:"rgba(255,255,255,0.5)",margin:"2px 0 0",letterSpacing:"0.06em",fontFamily:"'JetBrains Mono',monospace" }}>{PRIMARY_SLOT.hint.toUpperCase()}</p>
           </div>
-          {/* Replace + Remove buttons */}
           <div style={{ position:"absolute",top:10,right:10,display:"flex",gap:6 }}>
             <button onClick={e=>{e.stopPropagation();haptic("light");inputRef.current?.click();}} style={{ background:"rgba(0,0,0,0.72)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:9,color:"rgba(255,255,255,0.8)",letterSpacing:"0.08em",fontFamily:"'JetBrains Mono',monospace" }}>↺ REPLACE</button>
             <button onClick={e=>{e.stopPropagation();haptic("medium");onRemove(PRIMARY_SLOT.id);}} style={{ background:"rgba(239,68,68,0.88)",border:"none",borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:9,color:"#fff",letterSpacing:"0.08em",fontFamily:"'JetBrains Mono',monospace" }}>✕</button>
@@ -988,7 +907,6 @@ function HeroZone({ file, onUpload, onRemove, T }) {
         </>
       ) : (
         <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:14,padding:"24px 20px",textAlign:"center" }}>
-          {/* Animated rings */}
           <div style={{ position:"relative",width:64,height:64,flexShrink:0 }}>
             <div style={{ position:"absolute",inset:0,borderRadius:"50%",border:`2px dashed ${dragging?"#f97316":T.border}`,transition:"border-color .25s" }} />
             <div style={{ position:"absolute",inset:10,borderRadius:"50%",border:`1px solid ${dragging?"rgba(249,115,22,0.5)":T.borderFaint}`,transition:"border-color .25s" }} />
@@ -1006,12 +924,14 @@ function HeroZone({ file, onUpload, onRemove, T }) {
           )}
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={handleChange} />
+      {/* FIX: no capture attribute — lets user choose gallery or camera */}
+      <input ref={inputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleChange} />
     </div>
   );
 }
 
-// Compact optional slot tile for the 2×2 grid
+// Compact optional slot tile
+// FIX: no capture attribute on optional tiles either
 function OptionalTile({ slot, file, onUpload, onRemove, T }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
@@ -1044,12 +964,11 @@ function OptionalTile({ slot, file, onUpload, onRemove, T }) {
           </div>
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={e=>{if(e.target.files[0]){haptic("light");onUpload(slot.id,e.target.files[0]);}}} />
+      <input ref={inputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0]){haptic("light");onUpload(slot.id,e.target.files[0]);}}} />
     </div>
   );
 }
 
-// The main card component — drop-in replacement
 function UnifiedUploadCard({ files, onUpload, onRemove }) {
   const T = useTokens(), G = useG(), ripple = useRipple();
   const [accordionOpen, setAccordionOpen] = useState(false);
@@ -1059,7 +978,6 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
   const totalSlots    = 1 + OPTIONAL_SLOTS.length;
   return (
     <div style={{ ...G.card,borderRadius:20,padding:"clamp(16px,4vw,28px)",marginBottom:24 }}>
-      {/* Header */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
         <div>
           <h3 style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:T.text,margin:"0 0 3px" }}>Upload Tyre Photo</h3>
@@ -1070,18 +988,14 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
           <span style={{ fontSize:11,color:T.textMuted,fontFamily:"'JetBrains Mono',monospace" }}>/{totalSlots}</span>
         </div>
       </div>
-      {/* Progress */}
       <div style={{ height:3,background:T.ghost,borderRadius:2,overflow:"hidden",marginBottom:18 }}>
         <div style={{ height:"100%",borderRadius:2,width:`${(totalCount/totalSlots)*100}%`,background:`linear-gradient(90deg,${T.accentMid},${T.accent})`,transition:"width .6s cubic-bezier(.16,1,.3,1)" }} />
       </div>
-      {/* Tip */}
       <div style={{ display:"flex",gap:10,padding:"10px 14px",borderRadius:10,background:`${T.accent}0d`,border:`1px solid ${T.accent}1e`,marginBottom:18 }}>
         <span style={{ fontSize:13,flexShrink:0,marginTop:1 }}>💡</span>
         <p style={{ fontSize:10,color:T.textMuted,margin:0,lineHeight:1.65 }}><span style={{ color:`${T.accent}cc`,fontWeight:600 }}>Tip:</span> Place a coin in the tread groove to help the AI calibrate depth.</p>
       </div>
-      {/* Hero zone */}
       <HeroZone file={primaryFile} onUpload={onUpload} onRemove={onRemove} T={T} />
-      {/* Accordion toggle */}
       <button
         onClick={e=>{haptic("light");ripple(e);setAccordionOpen(o=>!o);}}
         style={{ width:"100%",marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px 16px",borderRadius:11,cursor:"pointer",background:accordionOpen?`${T.accent}12`:T.ghost,border:`1px solid ${accordionOpen?T.accent+"44":T.border}`,color:accordionOpen?T.accent:T.textMuted,fontFamily:"'JetBrains Mono',monospace",fontSize:10,letterSpacing:"0.1em",transition:"all .25s",position:"relative",overflow:"hidden" }}
@@ -1089,10 +1003,9 @@ function UnifiedUploadCard({ files, onUpload, onRemove }) {
         <span style={{ fontSize:13,transition:"transform .25s",transform:accordionOpen?"rotate(45deg)":"none",display:"inline-block" }}>+</span>
         {accordionOpen
           ? `HIDE OPTIONAL ANGLES${optionalCount>0?` · ${optionalCount} ADDED`:""}`
-          : `ADD MORE ANGLES FOR DEEPER ANALYSIS (OPTIONAL)${optionalCount>0?` · ${optionalCount} ADDED`:""}`}
+          : `ADD MORE ANGLES (OPTIONAL)${optionalCount>0?` · ${optionalCount} ADDED`:""}`}
         {optionalCount>0&&!accordionOpen&&<div style={{ width:7,height:7,borderRadius:"50%",background:"#10b981",flexShrink:0 }} />}
       </button>
-      {/* Accordion content */}
       {accordionOpen&&(
         <div className="uuc-accordion" style={{ marginTop:14 }}>
           <p style={{ fontSize:9,color:T.textFaint,letterSpacing:"0.14em",margin:"0 0 10px",textAlign:"center" }}>OPTIONAL · ADDS SIDEWALL, PROFILE & DETAIL ANALYSIS</p>
@@ -1250,16 +1163,15 @@ function GradCamDisplay({ base64, originalBase64 }) {
     <div style={{ borderRadius:10,overflow:"hidden",border:`1px solid ${T.border}`,position:"relative" }}>
       {originalBase64&&<img src={`data:image/jpeg;base64,${originalBase64}`} alt="Original tread" style={{ width:"100%",objectFit:"contain",maxHeight:240,display:"block" }} />}
       <img src={`data:image/jpeg;base64,${base64}`} alt="Grad-CAM" className={originalBase64?"gradcam-img":""} style={{ width:"100%",objectFit:"contain",maxHeight:240,display:"block",...(originalBase64?{position:"absolute",inset:0,height:"100%",mixBlendMode:"multiply",filter:"saturate(1.8) contrast(1.1)"}:{}) }} />
-      <div style={{ position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.6)",borderRadius:5,padding:"3px 8px",fontSize:9,color:`${useTokens().accent}cc`,letterSpacing:"0.1em" }}>GRAD-CAM</div>
+      <div style={{ position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.6)",borderRadius:5,padding:"3px 8px",fontSize:9,color:`${T.accent}cc`,letterSpacing:"0.1em" }}>GRAD-CAM</div>
       <div style={{ position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.6)",borderRadius:5,padding:"3px 8px",fontSize:9,color:"rgba(255,255,255,0.4)",letterSpacing:"0.08em" }}>{originalBase64?"OVERLAY":"HEATMAP"}</div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ─── PRINT REPORT — ALL COLOURS HARDCODED, NO useTokens() ────────────────────
+// ─── PRINT REPORT ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-// Hardcoded print palette — always light, always readable on white paper
 const PT = {
   text: "#111111", textSub: "#333333", textMuted: "#666666", textFaint: "#999999",
   bg: "#ffffff", surface: "#fafafa", border: "#e5e7eb",
@@ -1293,14 +1205,11 @@ function PrintReport({ result, previews }) {
   const time        = new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"});
   const reportId    = `STR-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 
-  // Shared inline style helper for print — hardcoded, no theme vars
   const pf = (styles) => ({ fontFamily:"'Helvetica Neue',Helvetica,Arial,sans-serif", ...styles });
 
   const content = (
     <>
-      {/* ── PAGE 1 ── */}
       <div className="print-page" style={{ padding:"0 0 24pt",position:"relative",background:"#ffffff",color:"#111111" }}>
-        {/* Header */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12pt" }}>
           <div style={{ display:"flex",alignItems:"center",gap:"10pt" }}>
             <div style={{ width:"36pt",height:"36pt",borderRadius:"8pt",background:"#ea6500",display:"flex",alignItems:"center",justifyContent:"center" }}>
@@ -1318,8 +1227,6 @@ function PrintReport({ result, previews }) {
           </div>
         </div>
         <hr className="pt-rule-heavy" style={{ marginBottom:"12pt" }} />
-
-        {/* Urgency badge */}
         <div className={`pt-badge pt-badge-${urgency}`} style={{ marginBottom:"12pt" }}>
           <div style={{ width:"10pt",height:"10pt",borderRadius:"50%",background:urgencyColor,flexShrink:0 }} />
           <div style={{ flex:1 }}>
@@ -1327,10 +1234,7 @@ function PrintReport({ result, previews }) {
             <span style={pf({ fontSize:"9pt",color:"#444444",marginLeft:"8pt" })}>{result.recommendation||"See full report for details."}</span>
           </div>
         </div>
-
-        {/* KPI grid — 3 columns */}
         <div className="pt-kpi-grid print-no-break" style={{ marginBottom:"10pt" }}>
-          {/* Health gauge */}
           <div className="pt-kpi">
             <p className="pt-label">OVERALL HEALTH</p>
             <div style={{ display:"flex",alignItems:"center",gap:"10pt" }}>
@@ -1345,7 +1249,6 @@ function PrintReport({ result, previews }) {
               </div>
             </div>
           </div>
-          {/* Tread depth */}
           <div className="pt-kpi">
             <p className="pt-label">TREAD DEPTH</p>
             <p className="pt-value" style={{ color:depthColor }}>{depth.depth_mm??"—"}<span style={pf({ fontSize:"11pt",fontWeight:400,color:"#666666" })}> mm</span></p>
@@ -1355,67 +1258,25 @@ function PrintReport({ result, previews }) {
             </div>
             <p className="pt-small" style={{ marginTop:"4pt" }}>Min: 1.6 mm{depth.remaining_km!=null?` · ~${depth.remaining_km.toLocaleString()} km left`:""}</p>
           </div>
-          {/* Urgency */}
           <div className="pt-kpi">
             <p className="pt-label">URGENCY LEVEL</p>
             <p className="pt-value" style={{ fontSize:"16pt",color:urgencyColor }}>{urgencyLabel}</p>
             <p className="pt-small" style={{ marginTop:"4pt",lineHeight:1.5 }}>{urgencyNote}</p>
           </div>
         </div>
-
-        {/* 4-column detail row */}
         <div className="pt-4col print-no-break" style={{ marginBottom:"10pt" }}>
-          <div className="pt-kpi-2">
-            <p className="pt-label">WEAR LEVEL</p>
-            <p style={pf({ fontWeight:700,fontSize:"11pt",color:urgency==="high"?PT.red:PT.text,margin:"4pt 0 2pt" })}>{result.wear_level||"—"}</p>
-            {result.cause&&<p className="pt-small" style={{ fontStyle:"italic" }}>{result.cause}</p>}
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">WEAR PATTERN</p>
-            <p style={pf({ fontWeight:700,fontSize:"11pt",color:PT.text,margin:"4pt 0 2pt" })}>{result.pattern||"—"}</p>
-            {result.cause&&<p className="pt-small" style={{ fontStyle:"italic" }}>{result.cause}</p>}
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">TYRE AGE / DOT</p>
-            <p style={pf({ fontWeight:700,fontSize:"11pt",color:PT.text,margin:"4pt 0 2pt" })}>{result.tyre_age?.age_display||"Unknown"}</p>
-            <p className="pt-small">{result.tyre_age?.manufacture||""}{!result.tyre_age?.dot_found?" (DOT not detected)":""}</p>
-          </div>
-          <div className="pt-kpi-2">
-            <p className="pt-label">SIDEWALL</p>
-            <p style={pf({ fontWeight:700,fontSize:"11pt",color:result.sidewall&&result.sidewall!=="None"?PT.red:PT.green,margin:"4pt 0 2pt" })}>{result.sidewall==="None"?"No damage":result.sidewall||"—"}</p>
-            <p className="pt-small">{result.sidewall&&result.sidewall!=="None"?"⚠ Inspect immediately":"Visually clear"}</p>
-          </div>
+          <div className="pt-kpi-2"><p className="pt-label">WEAR LEVEL</p><p style={pf({ fontWeight:700,fontSize:"11pt",color:urgency==="high"?PT.red:PT.text,margin:"4pt 0 2pt" })}>{result.wear_level||"—"}</p>{result.cause&&<p className="pt-small" style={{ fontStyle:"italic" }}>{result.cause}</p>}</div>
+          <div className="pt-kpi-2"><p className="pt-label">WEAR PATTERN</p><p style={pf({ fontWeight:700,fontSize:"11pt",color:PT.text,margin:"4pt 0 2pt" })}>{result.pattern||"—"}</p>{result.cause&&<p className="pt-small" style={{ fontStyle:"italic" }}>{result.cause}</p>}</div>
+          <div className="pt-kpi-2"><p className="pt-label">TYRE AGE / DOT</p><p style={pf({ fontWeight:700,fontSize:"11pt",color:PT.text,margin:"4pt 0 2pt" })}>{result.tyre_age?.age_display||"Unknown"}</p><p className="pt-small">{result.tyre_age?.manufacture||""}{!result.tyre_age?.dot_found?" (DOT not detected)":""}</p></div>
+          <div className="pt-kpi-2"><p className="pt-label">SIDEWALL</p><p style={pf({ fontWeight:700,fontSize:"11pt",color:result.sidewall&&result.sidewall!=="None"?PT.red:PT.green,margin:"4pt 0 2pt" })}>{result.sidewall==="None"?"No damage":result.sidewall||"—"}</p><p className="pt-small">{result.sidewall&&result.sidewall!=="None"?"⚠ Inspect immediately":"Visually clear"}</p></div>
         </div>
-
-        {/* Recommendation */}
-        <div className="pt-reco print-no-break">
-          <p className="pt-h3" style={{ color:PT.accent,marginBottom:"5pt" }}>WORKSHOP RECOMMENDATION</p>
-          <p className="pt-body">{result.recommendation||"Consult a qualified tyre technician for a full physical inspection."}</p>
-        </div>
-
-        {result.warnings?.length>0&&(
-          <div className="pt-warn print-no-break">
-            <p className="pt-h3" style={{ color:"#b45309",marginBottom:"5pt" }}>AI QUALITY FLAGS</p>
-            {result.warnings.map((w,i)=><p key={i} className="pt-small" style={{ margin:i>0?"3pt 0 0":0 }}>• {w}</p>)}
-          </div>
-        )}
-
-        <div className="pt-footer">
-          <span>STRADA AI Tyre Intelligence · {reportId}</span>
-          <span>Page 1 of 2</span>
-          <span>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span>
-        </div>
+        <div className="pt-reco print-no-break"><p className="pt-h3" style={{ color:PT.accent,marginBottom:"5pt" }}>WORKSHOP RECOMMENDATION</p><p className="pt-body">{result.recommendation||"Consult a qualified tyre technician for a full physical inspection."}</p></div>
+        {result.warnings?.length>0&&(<div className="pt-warn print-no-break"><p className="pt-h3" style={{ color:"#b45309",marginBottom:"5pt" }}>AI QUALITY FLAGS</p>{result.warnings.map((w,i)=><p key={i} className="pt-small" style={{ margin:i>0?"3pt 0 0":0 }}>• {w}</p>)}</div>)}
+        <div className="pt-footer"><span>STRADA AI Tyre Intelligence · {reportId}</span><span>Page 1 of 2</span><span>NOT A SUBSTITUTE FOR PROFESSIONAL INSPECTION</span></div>
       </div>
-
-      {/* ── PAGE 2 ── */}
       <div className="print-page print-break-before" style={{ background:"#ffffff",color:"#111111" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10pt" }}>
-          <p className="pt-h2" style={{ margin:0 }}>SCORE BREAKDOWN</p>
-          <p className="pt-small">{reportId} · Page 2</p>
-        </div>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10pt" }}><p className="pt-h2" style={{ margin:0 }}>SCORE BREAKDOWN</p><p className="pt-small">{reportId} · Page 2</p></div>
         <hr className="pt-rule" style={{ marginBottom:"10pt" }} />
-
-        {/* Score rows */}
         <div className="print-no-break" style={{ marginBottom:"14pt" }}>
           {Object.keys(breakdown).length>0
             ? Object.entries(breakdown).map(([key,val])=>{
@@ -1432,8 +1293,6 @@ function PrintReport({ result, previews }) {
               })
             : <p className="pt-small" style={{ margin:"0 0 14pt" }}>Score breakdown not available.</p>}
         </div>
-
-        {/* Grad-CAM + submitted images */}
         <div className="pt-2col print-no-break" style={{ marginBottom:"14pt" }}>
           <div>
             <p className="pt-h3" style={{ marginBottom:"6pt" }}>GRAD-CAM ATTENTION MAP</p>
@@ -1456,8 +1315,6 @@ function PrintReport({ result, previews }) {
               : <p className="pt-small">No images submitted.</p>}
           </div>
         </div>
-
-        {/* Checklist */}
         <div className="pt-checklist print-no-break">
           <p className="pt-h3" style={{ marginBottom:"8pt" }}>WORKSHOP ACTION CHECKLIST</p>
           {[
@@ -1475,19 +1332,12 @@ function PrintReport({ result, previews }) {
             </div>
           ))}
         </div>
-
-        {/* Disclaimer */}
         <div style={{ marginTop:"12pt",padding:"8pt 12pt",background:"#f9fafb",border:"0.75pt solid #e5e7eb",borderRadius:"4pt" }}>
           <p style={pf({ fontSize:"7.5pt",color:"#999999",margin:0,lineHeight:1.6 })}>
             <strong style={{ color:"#666666" }}>DISCLAIMER:</strong> This report is generated by the STRADA AI Tyre Intelligence system and is intended as a supplementary diagnostic aid only. Report ID: {reportId}
           </p>
         </div>
-
-        <div className="pt-footer">
-          <span>STRADA AI Tyre Intelligence</span>
-          <span>Page 2 of 2</span>
-          <span>{now}</span>
-        </div>
+        <div className="pt-footer"><span>STRADA AI Tyre Intelligence</span><span>Page 2 of 2</span><span>{now}</span></div>
       </div>
     </>
   );
@@ -1633,6 +1483,7 @@ function ResultCard({ result, onViewReport }) {
 }
 
 // ─── DIAGNOSE PAGE ────────────────────────────────────────────────────────────
+// FIX: Button layout corrected — full-width on mobile, proper alignment
 function DiagnosePage({ isMobile, onSlickEgg }) {
   const [files,setFiles]=useState({});
   const [loading,setLoading]=useState(false);
@@ -1667,8 +1518,15 @@ function DiagnosePage({ isMobile, onSlickEgg }) {
       haptic("heavy");
     } finally { setLoading(false); }
   };
+
+  // FIX: Determine button state styles clearly
+  const btnActive = canAnalyse && !loading;
+  const btnStyle = btnActive
+    ? { background:`linear-gradient(135deg,${T.accentMid},${T.accentDark})`, border:"none", color:"white", boxShadow:"0 0 40px rgba(249,115,22,0.35),0 6px 24px rgba(0,0,0,0.15)", cursor:"pointer" }
+    : { background:T.ghost, border:`1px solid ${T.border}`, color:T.textFaint, cursor:"not-allowed" };
+
   return (
-    <div style={{ maxWidth:720,margin:"0 auto",padding:`clamp(72px,10vh,106px) clamp(14px,5vw,28px) ${isMobile?"90px":"80px"}` }}>
+    <div style={{ maxWidth:720,margin:"0 auto",padding:`clamp(72px,10vh,106px) clamp(14px,5vw,28px) ${isMobile?"100px":"80px"}` }}>
       {showReport&&result&&<ReportPage result={result} previews={previews} onClose={()=>setShowReport(false)} />}
       <div style={{ marginBottom:32 }}>
         <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:10 }}>
@@ -1678,11 +1536,48 @@ function DiagnosePage({ isMobile, onSlickEgg }) {
         <h2 style={{ fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:"clamp(30px,7vw,58px)",color:T.text,letterSpacing:"-0.03em",margin:"0 0 10px",lineHeight:1 }}>ANALYSE TYRES</h2>
         <p style={{ fontSize:12,color:T.textMuted,lineHeight:1.8,margin:0,maxWidth:480 }}>Upload one photo to start — add more angles below for a deeper analysis.</p>
       </div>
+
       <UnifiedUploadCard files={files} onUpload={handleUpload} onRemove={handleRemove} />
-      <button onClick={e=>{if(!canAnalyse||loading)return;ripple(e);handleAnalyse();}} disabled={!canAnalyse||loading} className={canAnalyse&&!loading?"mag-btn touch-btn":""}
-        style={{ width:"100%",padding:"16px",borderRadius:14,cursor:canAnalyse&&!loading?"pointer":"not-allowed",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:"clamp(13px,3vw,14px)",letterSpacing:"0.05em",transition:"all .3s",position:"relative",overflow:"hidden",...(canAnalyse&&!loading?{background:`linear-gradient(135deg,${T.accentMid},${T.accentDark})`,border:"none",color:"white",boxShadow:"0 0 40px rgba(249,115,22,0.35),0 6px 24px rgba(0,0,0,0.15)"}:{background:T.ghost,border:`1px solid ${T.border}`,color:T.textFaint}) }}>
-        {loading?"ANALYSING…":canAnalyse?"▶  RUN DIAGNOSTIC":"UPLOAD AT LEAST 1 IMAGE"}
+
+      {/* FIX: Run diagnostic button — full width, clear layout, no column breakage */}
+      <button
+        onClick={e=>{ if(!canAnalyse||loading)return; ripple(e); handleAnalyse(); }}
+        disabled={!canAnalyse||loading}
+        className={btnActive?"mag-btn touch-btn":""}
+        style={{
+          width:"100%",
+          padding:"18px 24px",
+          borderRadius:14,
+          fontFamily:"'Syne',sans-serif",
+          fontWeight:700,
+          fontSize:"clamp(14px,3.5vw,15px)",
+          letterSpacing:"0.05em",
+          transition:"all .3s",
+          position:"relative",
+          overflow:"hidden",
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          gap:10,
+          minHeight:56,
+          ...btnStyle
+        }}
+      >
+        {loading ? (
+          <>
+            <div style={{ width:16,height:16,borderRadius:"50%",border:`2px solid rgba(255,255,255,0.3)`,borderTopColor:"white",animation:"spin .7s linear infinite",flexShrink:0 }} />
+            ANALYSING…
+          </>
+        ) : canAnalyse ? (
+          <>
+            <span style={{ fontSize:16,lineHeight:1 }}>▶</span>
+            RUN DIAGNOSTIC
+          </>
+        ) : (
+          "UPLOAD AT LEAST 1 IMAGE"
+        )}
       </button>
+
       {loading&&<DiagnosticLoader />}
       {error&&<div style={{ marginTop:18,...G.card,borderRadius:12,borderLeft:"2px solid rgba(239,68,68,0.45)",padding:"14px 18px" }}><p style={{ fontSize:12,color:"#ef4444",margin:0 }}>{error}</p></div>}
       {result&&!loading&&<ResultCard result={result} onViewReport={()=>setShowReport(true)} />}
@@ -1695,26 +1590,27 @@ function DiagnosePage({ isMobile, onSlickEgg }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ─── ROOT ─────────────────────────────────────────────────────────────────────
+// ─── ROOT ─────────────────────────────────────════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [page,setPage]=useState("landing");
   const [isMobile,setIsMobile]=useState(false);
-  const [theme,setTheme]=useState("light");
   const [splashDone,setSplashDone]=useState(false);
   const [showRollingTyre,setShowRollingTyre]=useState(false);
   const [showSlickPopup,setShowSlickPopup]=useState(false);
   const [showSpinOut,setShowSpinOut]=useState(false);
+
   useEffect(()=>{const check=()=>setIsMobile(window.innerWidth<=640);check();window.addEventListener("resize",check);return()=>window.removeEventListener("resize",check);},[]);
-  useEffect(()=>{document.body.className=theme==="dark"?"dark-mode":"light-mode";},[theme]);
-  const toggleTheme=useCallback(()=>setTheme(t=>t==="dark"?"light":"dark"),[]);
+  useEffect(()=>{document.body.className="dark-mode";},[]);
+
+  const toggleTheme=useCallback(()=>{},[]);
   const go=useCallback(p=>{setPage(p);window.scrollTo({top:0,behavior:"smooth"});},[]);
-  const T=theme==="dark"?DARK:LIGHT;
-  const handleToggleEgg=useCallback(type=>{if(type==="spinout"){haptic("heavy");setShowSpinOut(true);}},[]);
+  const T=DARK;
   const handleRadarTripleClick=useCallback(()=>{if(!showRollingTyre){haptic("heavy");setShowRollingTyre(true);}},[showRollingTyre]);
   const handleSlickEgg=useCallback(()=>{setShowSlickPopup(true);},[]);
+
   return (
-    <ThemeContext.Provider value={{ theme,toggleTheme }}>
+    <ThemeContext.Provider value={{ theme:"dark", toggleTheme }}>
       <style dangerouslySetInnerHTML={{ __html:GLOBAL_CSS }} />
       {!splashDone&&<SplashScreen onComplete={()=>setSplashDone(true)} />}
       {showRollingTyre&&<RollingTyre onDone={()=>setShowRollingTyre(false)} />}
@@ -1722,11 +1618,11 @@ export default function App() {
       {showSpinOut&&<SpinOutOverlay onDone={()=>setShowSpinOut(false)} />}
       <div style={{ minHeight:"100dvh",background:T.bg,color:T.text,position:"relative",fontFamily:"'JetBrains Mono',monospace",opacity:splashDone?1:0,transition:"opacity 0.4s ease" }}>
         <StaticBg />
-        <ResponsiveNav page={page} setPage={go} onToggleEgg={handleToggleEgg} />
+        <ResponsiveNav page={page} setPage={go} />
         <div style={{ position:"relative",zIndex:2 }}>
           {page==="landing"&&<LandingPage setPage={go} onRadarTripleClick={handleRadarTripleClick} />}
           {page==="diagnose"&&<DiagnosePage isMobile={isMobile} onSlickEgg={handleSlickEgg} />}
-          {page==="info"&&<InfoPage />}
+          {page==="info"&&<InfoPage setPage={go} />}
           {page==="about"&&<AboutPage />}
         </div>
         {!isMobile&&(
